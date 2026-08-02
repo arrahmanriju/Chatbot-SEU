@@ -1,0 +1,18 @@
+# Environment variables
+.env
+.env.*
+
+# Python virtual environments
+myenvironment/
+.venv/
+venv/
+
+# Local/generated artifacts
+vectorstore/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# OS/editor noise
+.DS_Store
+.vscode/
