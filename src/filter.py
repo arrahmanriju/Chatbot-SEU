@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from langchain_community.vectorstores import FAISS
 from langchain_community.vectorstores.utils import DistanceStrategy
 
@@ -5,6 +7,9 @@ try:
     from src.embedder import get_embedding_model
 except ModuleNotFoundError:
     from embedder import get_embedding_model
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_PERSIST_DIR = ROOT_DIR / "vectorstore" / "faiss_index"
 
 GREETINGS = {
     "hi", "hello", "hey", "hii", "hiya", "yo",
@@ -18,10 +23,11 @@ META_PHRASES = (
 )
 
 
-def load_vectorstore(persist_dir: str = "vectorstore/faiss_index"):
+def load_vectorstore(persist_dir: str | Path | None = None):
     embeddings = get_embedding_model()
+    persist_path = Path(persist_dir) if persist_dir else DEFAULT_PERSIST_DIR
     return FAISS.load_local(
-        persist_dir,
+        str(persist_path),
         embeddings,
         allow_dangerous_deserialization=True,
         distance_strategy=DistanceStrategy.COSINE,

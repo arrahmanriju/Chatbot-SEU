@@ -32,7 +32,12 @@ def run_chatbot(question: str, vectorstore, chat_history: list = None):
 
     chunks = retrieve_top_chunks(question, vectorstore, k=5)
     prompt = build_prompt(question, chunks, chat_history)
-    reply = ask_llm(prompt)
+
+    try:
+        reply = ask_llm(prompt)
+    except Exception as exc:
+        return f"Sorry, I couldn’t generate a response right now. {exc}"
+
     return reply
 
 

@@ -1,12 +1,14 @@
 import os
 import sys
+from pathlib import Path
 
 import streamlit as st
 
 # allow imports from src/
-SRC_DIR = os.path.join(os.path.dirname(__file__), "src")
-if SRC_DIR not in sys.path:
-    sys.path.append(SRC_DIR)
+ROOT_DIR = Path(__file__).resolve().parent
+SRC_DIR = ROOT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
 
 from src.filter import load_vectorstore
 from src.chain import run_chatbot
@@ -15,12 +17,17 @@ st.set_page_config(page_title="SEU Chatbot", page_icon="🎓")
 st.title("🎓 Southeast University Chatbot")
 st.caption("Ask me anything about Southeast University, Bangladesh")
 
-# Load vectorstore once and cache it across reruns
+
 @st.cache_resource
 def get_vectorstore():
     return load_vectorstore()
 
-vectorstore = get_vectorstore()
+
+try:
+    vectorstore = get_vectorstore()
+except Exception as exc:
+    st.error(f"The knowledge base could not be loaded: {exc}")
+    st.stop()
 
 # Chat history stored as list of (user_msg, bot_msg) tuples
 if "chat_history" not in st.session_state:
