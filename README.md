@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Chatbot-SEU 🎓
 
 A RAG-based chatbot that answers questions about Southeast University (SEU), Bangladesh, using the university's website content, FAISS vector search, and Llama 3.3 on Groq.
@@ -237,3 +238,19 @@ Contributions, issues, and feature requests are welcome. Check the [issues page]
 ## License
 
 `<add your license, for example MIT, and a LICENSE file>`
+=======
+---
+title: SEU Chatbot
+emoji: 📊
+colorFrom: purple
+colorTo: green
+sdk: gradio
+sdk_version: 6.22.0
+python_version: '3.12'
+app_file: app.py
+pinned: false
+license: mit
+---
+
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+>>>>>>> c661f79 (initial commit)
