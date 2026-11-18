@@ -33,7 +33,7 @@ class ServiceTests(unittest.TestCase):
             '{"status":"unverified"}',
         ]
         self.service.chat("And the fees?", [("Tell me about CSE", "CSE information")])
-        self.retriever.search.assert_called_once_with("What are the CSE fees?", 5)
+        self.retriever.search.assert_called_once_with("What are the CSE fees?", 15)
 
     def test_bangla_greeting_skips_inference(self):
         self.assertEqual(self.service.chat("হ্যালো!").route, "conversation")

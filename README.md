@@ -54,7 +54,7 @@ The sidebar offers two example questions for each of the 15 student categories. 
 - [Coverage and knowledge gaps](STUDENT_COVERAGE.md) lists verified public sources and missing procedures by category.
 - [Student questions](data/student_questions.jsonl) contains 225 generated prompts. There are five scenarios per category, written in three languages, with alternate phrasing, expected behavior, source IDs, and privacy labels.
 - [Evaluation dataset](data/evaluation_dataset.jsonl) groups translations and paraphrases together by semantic intent. Its 45 test prompts cover 15 held-out scenarios. The 45 development prompts cover distinct private-record scenarios. No model was fitted to these files.
-- [Verified student sources](data/verified_student_sources.jsonl) contains concise summaries of 11 official public sources. Retrieval timestamps are recorded separately from publication dates. Multilingual search aliases improve keyword matching and are excluded from answer evidence.
+- [Verified student sources](data/verified_student_sources.jsonl) contains concise summaries of 12 official public sources. Retrieval timestamps are recorded separately from publication dates. Multilingual search aliases improve keyword matching and are excluded from answer evidence.
 
 ## Knowledge-base updates
 

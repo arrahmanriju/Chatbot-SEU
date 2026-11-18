@@ -55,6 +55,7 @@ class Citation(BaseModel):
     url: str | None = None
     page: int | None = None
     source_id: str | None = None
+    admission_session: str | None = None
     potentially_outdated: bool = True
 
 
@@ -127,7 +128,7 @@ def sources():
         key = (metadata.get("source_url"), metadata.get("title"))
         summaries[key] = {
             "url": source_url(key[0]), "title": key[1], "category": metadata.get("category"),
-            "source_id": metadata.get("id"), "retrieved_at": metadata.get("retrieved_at"),
+            "source_id": metadata.get("id"), "admission_session": metadata.get("admission_session"), "retrieved_at": metadata.get("retrieved_at"),
             "updated_at": metadata.get("updated_at"), "potentially_outdated": potentially_outdated(metadata.get("updated_at")),
         }
     return list(summaries.values())
