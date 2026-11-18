@@ -6,6 +6,9 @@ from pathlib import Path
 DEFAULT_DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "old_seu_website_cleaned.jsonl"
 
 
+VERIFIED_STUDENT_PATH = DEFAULT_DATA_PATH.with_name("verified_student_sources.jsonl")
+
+
 def read_records(path):
     with Path(path).open(encoding="utf-8-sig") as source:
         if Path(path).suffix.lower() == ".json":
@@ -31,7 +34,7 @@ def load_university_data(json_path: str | Path = DEFAULT_DATA_PATH):
         if not isinstance(record, dict):
             raise ValueError(f"Corpus record {number} must be an object.")
         metadata = {key: record.get(key) for key in
-                    ("id", "source_url", "title", "category", "updated_at")}
+                    ("id", "source_url", "title", "category", "updated_at", "retrieved_at", "verification", "search_aliases")}
         if any(value is not None and not isinstance(value, (str, int)) for value in metadata.values()):
             raise ValueError(f"Invalid metadata for corpus record {number}.")
         title = metadata["title"]

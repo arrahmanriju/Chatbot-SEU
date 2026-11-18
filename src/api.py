@@ -39,7 +39,7 @@ class Turn(BaseModel):
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     history: list[Turn] = Field(default_factory=list, max_length=5)
-    language: Literal["auto", "en", "bn"] = "auto"
+    language: Literal["auto", "en", "bn", "banglish"] = "auto"
 
     @field_validator("question")
     @classmethod
@@ -54,6 +54,7 @@ class Citation(BaseModel):
     title: str | None = None
     url: str | None = None
     page: int | None = None
+    source_id: str | None = None
     potentially_outdated: bool = True
 
 
@@ -64,6 +65,7 @@ class ChatResponse(BaseModel):
     citations: list[Citation]
     retrieved_count: int
     elapsed_ms: float
+    intents: list[str] = Field(default_factory=list)
 
 
 class FeedbackRequest(BaseModel):
@@ -125,6 +127,7 @@ def sources():
         key = (metadata.get("source_url"), metadata.get("title"))
         summaries[key] = {
             "url": source_url(key[0]), "title": key[1], "category": metadata.get("category"),
+            "source_id": metadata.get("id"), "retrieved_at": metadata.get("retrieved_at"),
             "updated_at": metadata.get("updated_at"), "potentially_outdated": potentially_outdated(metadata.get("updated_at")),
         }
     return list(summaries.values())

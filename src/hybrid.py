@@ -54,7 +54,8 @@ class HybridRetriever:
             self.store.docstore.search(key)
             for key in self.store.index_to_docstore_id.values()
         ]
-        tokens = [tokenize(doc.page_content) for doc in documents]
+        tokens = [tokenize(doc.page_content + " " + (doc.metadata.get("search_aliases") or ""))
+                  for doc in documents]
         titles = {}
         seen_titles = set()
         for doc in documents:

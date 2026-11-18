@@ -27,13 +27,16 @@ def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=N
     import faiss
     from langchain_community.vectorstores import FAISS
 
-    from src.loader import DEFAULT_DATA_PATH, load_university_data
+    from src.loader import DEFAULT_DATA_PATH, VERIFIED_STUDENT_PATH, load_university_data
     from src.splitter import split_documents
 
     target = Path(persist_dir)
     model = embedding_model()
+    documents = load_university_data(data_path or DEFAULT_DATA_PATH)
+    if data_path is None or Path(data_path).resolve() == DEFAULT_DATA_PATH.resolve():
+        documents.extend(load_university_data(VERIFIED_STUDENT_PATH))
     records = {}
-    for chunk in split_documents(load_university_data(data_path or DEFAULT_DATA_PATH)):
+    for chunk in split_documents(documents):
         record = {"content": chunk.page_content, "metadata": chunk.metadata}
         records.setdefault(json.dumps(record, sort_keys=True, ensure_ascii=False), chunk)
     chunks = list(records.values())

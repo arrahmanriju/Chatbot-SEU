@@ -1,4 +1,4 @@
-# Chatbot-SEU 2.0
+# Chatbot-SEU 2.0 · Student Support Assistant
 
 Chatbot-SEU is a retrieval-augmented assistant for Southeast University, Bangladesh. It uses the bundled website archive and can ingest curated notices, calendars, and text-based PDFs. Streamlit offers English and Bangla interfaces, conversation reset, source links, and feedback. FastAPI serves the chat and source catalog, and SQLite stores feedback.
 
@@ -9,7 +9,8 @@ flowchart LR
     Data[JSON, JSONL, curated PDFs] --> Build[Offline ingestion and chunking]
     Build --> Index[FAISS vectors and JSON document manifest]
     UI[Streamlit] --> API[FastAPI]
-    API --> Rewrite[Resolve ambiguous follow-ups]
+    API --> Triage[Language, student intent, and private-record routing]
+    Triage --> Rewrite[Resolve ambiguous follow-ups]
     Rewrite --> Search[FAISS and BM25 with reciprocal rank fusion]
     Index --> Search
     Search --> Rerank[Optional multilingual cross-encoder]
@@ -46,9 +47,18 @@ In a second shell with the same environment, run `python -m streamlit run app.py
 | `CORS_ORIGINS` | Comma-separated permitted browser origins. Empty by default. |
 | `FEEDBACK_DB` | SQLite feedback file path |
 
+## Student support
+
+The sidebar offers two example questions for each of the 15 student categories. Auto language mode detects English, Bangla, and common Banglish forms. English and Bangla can also be selected explicitly. Public navigation and account-access rules handle straightforward requests before search or model inference. For mixed public questions, retrieval gathers evidence for up to three clauses. The assistant sends no authorized-account requests and does not log in to UMS. The feedback store holds response IDs and votes.
+
+- [Coverage and knowledge gaps](STUDENT_COVERAGE.md) lists verified public sources and missing procedures by category.
+- [Student questions](data/student_questions.jsonl) contains 225 generated prompts. There are five scenarios per category, written in three languages, with alternate phrasing, expected behavior, source IDs, and privacy labels.
+- [Evaluation dataset](data/evaluation_dataset.jsonl) groups translations and paraphrases together by semantic intent. Its 45 test prompts cover 15 held-out scenarios. The 45 development prompts cover distinct private-record scenarios. No model was fitted to these files.
+- [Verified student sources](data/verified_student_sources.jsonl) contains concise summaries of 11 official public sources. Retrieval timestamps are recorded separately from publication dates. Multilingual search aliases improve keyword matching and are excluded from answer evidence.
+
 ## Knowledge-base updates
 
-Run `python -m src.store --data data/your_sources.jsonl --index-dir vectorstore/faiss_index` offline. A record accepts `clean_text` or a relative `pdf_path`. It can include `id`, `title`, `source_url`, `category`, and `updated_at` as an ISO date. Use categories such as `notice` and `academic_calendar`. Document dates come from supplied metadata. Missing, invalid, future, and more than one-year-old dates are flagged as potentially outdated. Scanned PDFs require OCR before ingestion.
+The default build indexes the legacy archive and the verified student source file together. Run `python -m src.store --data data/your_sources.jsonl --index-dir vectorstore/faiss_index` offline. A record accepts `clean_text` or a relative `pdf_path`. It can include `id`, `title`, `source_url`, `category`, and `updated_at` as an ISO date. Use categories such as `notice` and `academic_calendar`. Document dates come from supplied metadata. Missing, invalid, future, and more than one-year-old dates are flagged as potentially outdated. Scanned PDFs require OCR before ingestion.
 
 The builder skips unchanged corpora and deduplicates exact chunk records. Changed corpora rebuild the index as an atomic replacement. Rebuild when changing the embedding model. Existing pickle-backed indexes require a rebuild. Serve the new artifact from a trusted volume and restart FastAPI after swapping the index. Administrative ingestion runs through the CLI.
 
@@ -63,7 +73,31 @@ The builder skips unchanged corpora and deduplicates exact chunk records. Change
 
 Interactive OpenAPI docs are available at `/docs` on the backend.
 
-## Evaluation
+## Student benchmark
+
+Run `python -m evaluation.student --baseline vectorstore/student-baseline` with the archive-only index preserved before upgrading. For a reconstructed baseline, build the default corpus in the previous checkout and point `--baseline` at its index directory. The comparison uses the same MiniLM embedding model and Recall@5/MRR@5 computed by matching official URLs. Retrieval metrics use the 36 held-out prompts with verified reference sources. Category accuracy uses all 45 held-out prompts and measures the top predicted category.
+
+| Language | Archive Recall@5 | Student Recall@5 | Archive MRR@5 | Student MRR@5 | Category accuracy |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| All | 5.6% | 97.2% | 0.056 | 0.682 | 84.4% |
+| English | 8.3% | 100% | 0.083 | 0.875 | 86.7% |
+| Bangla | 0.0% | 91.7% | 0.000 | 0.458 | 80.0% |
+| Banglish | 8.3% | 100% | 0.083 | 0.711 | 86.7% |
+
+Mean retrieval latency was 13.96 ms for the archive and 15.00 ms for the student index in this local WSL run. Each group contains translations of the same scenario, so the measurements are scenario-level coverage checks rather than independent estimates of production accuracy. The curated summaries and aliases cover the topics represented in the benchmark. They do not establish coverage of current policies across all categories.
+
+### Live diagnostic
+
+The live diagnostic used six prompts covering admissions contact and lost-certificate replacement in three languages. The archive comparator used the old index and disabled student-specific routing. Its generation configuration approximates the previous service. Manual review checked whether each answer matched the official reference or abstained appropriately. Groundedness measured whether complete factual answers stayed within the scope of the evidence. The unsupported-answer rate is the complement on that factual subset.
+
+| Run | Correct | Grounded factual answers | Unsupported factual answers | Mean service latency |
+| --- | ---: | ---: | ---: | ---: |
+| Archive comparator | 0/6 | 1/2 | 1/2 | 1,292.20 ms |
+| Student routes after targeted fixes | 6/6 | 3/3 | 0/3 | 0.53 ms |
+
+The six prompts informed the targeted admissions-contact and certificate-replacement rules. This is a regression diagnostic, not a blind answer-quality result. The student routes avoided Groq calls, so their latency is not representative of generated answers. The earlier model-only diagnostic also encountered a provider rate limit. Use `python -m evaluation.student --live-output vectorstore/student-live.json` to export a diagnostic run, review its `correct` and `grounded` fields, and use `python -m evaluation.student --score vectorstore/student-live.json` to aggregate it.
+
+## Original RAG evaluation
 
 Run `python -m evaluation.run` to compare the original dense retrieval configuration, hybrid retrieval, hybrid with reranking, and reranking plus rewriting. It reports source Recall@K, truncated MRR, and mean elapsed search time. The benchmark includes English, Bangla, Banglish, follow-up, out-of-scope, unanswerable, and greeting cases. Retrieval metrics use the five cases with labeled relevant sources.
 
