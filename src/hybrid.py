@@ -67,6 +67,19 @@ class HybridRetriever:
                 seen_titles.add(key)
         return documents, BM25Okapi(tokens), titles
 
+    @cached_property
+    def fee_documents(self):
+        documents = {}
+        for key in self.store.index_to_docstore_id.values():
+            doc = self.store.docstore.search(key)
+            schedule = doc.metadata.get("fee_schedule")
+            if isinstance(schedule, dict) and isinstance(schedule.get("program"), str):
+                documents.setdefault(schedule["program"], []).append(doc)
+        return documents
+
+    def search_program_fees(self, programs):
+        return [Match(doc, None) for program in programs for doc in self.fee_documents.get(program, ())]
+
     def search(self, question: str, limit: int = 5):
         dense = self.store.similarity_search_with_relevance_scores(question, k=self.candidates)
         dense = [(doc, score) for doc, score in dense if score >= self.min_dense_score]

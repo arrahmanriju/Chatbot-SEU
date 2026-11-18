@@ -8,6 +8,7 @@ from src.service import ChatService
 class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.retriever = Mock()
+        self.retriever.search_program_fees.return_value = []
         self.retriever.search.return_value = [
             SimpleNamespace(document=SimpleNamespace(
                 page_content="Archived text",
@@ -33,7 +34,7 @@ class ServiceTests(unittest.TestCase):
             '{"status":"unverified"}',
         ]
         self.service.chat("And the fees?", [("Tell me about CSE", "CSE information")])
-        self.retriever.search.assert_called_once_with("What are the CSE fees?", 15)
+        self.retriever.search_program_fees.assert_called_once_with(("CSE",))
 
     def test_bangla_greeting_skips_inference(self):
         self.assertEqual(self.service.chat("হ্যালো!").route, "conversation")
@@ -41,6 +42,7 @@ class ServiceTests(unittest.TestCase):
         self.retriever.search.assert_not_called()
 
     def test_no_evidence_can_still_route_unrelated_questions(self):
+        self.retriever.search_program_fees.return_value = []
         self.retriever.search.return_value = []
         self.generate.return_value = '{"status":"out_of_scope"}'
         result = self.service.chat("How does soccer offside work?")

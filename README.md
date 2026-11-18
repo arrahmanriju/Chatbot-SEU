@@ -54,7 +54,9 @@ The sidebar offers two example questions for each of the 15 student categories. 
 - [Coverage and knowledge gaps](STUDENT_COVERAGE.md) lists verified public sources and missing procedures by category.
 - [Student questions](data/student_questions.jsonl) contains 225 generated prompts. There are five scenarios per category, written in three languages, with alternate phrasing, expected behavior, source IDs, and privacy labels.
 - [Evaluation dataset](data/evaluation_dataset.jsonl) groups translations and paraphrases together by semantic intent. Its 45 test prompts cover 15 held-out scenarios. The 45 development prompts cover distinct private-record scenarios. No model was fitted to these files.
-- [Verified student sources](data/verified_student_sources.jsonl) contains concise summaries of 12 official public sources. Retrieval timestamps are recorded separately from publication dates. Multilingual search aliases improve keyword matching and are excluded from answer evidence.
+- [Verified student sources](data/verified_student_sources.jsonl) contains public-source summaries, 17 program fee rows, and a separate admission-charges record. Retrieval timestamps are recorded separately from publication dates. Multilingual search aliases improve keyword matching and are excluded from answer evidence.
+
+Program fee queries retrieve structured rows by program from the loaded FAISS index. The formatter checks the official source, applicable admission session, and consistency of the published figures before displaying them. MBA (Regular) and MBA (One-Year) are separate rows. Program comparisons use a common session. The Fall 2025 prospectus explicitly labels the Pharmacy row Spring 2026. Current-rate requests disclose that current figures could not be verified. Admission charges are shown separately from the published approximate program cost.
 
 ## Knowledge-base updates
 

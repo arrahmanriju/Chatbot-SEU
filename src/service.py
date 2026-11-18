@@ -16,7 +16,8 @@ from src.student import (classify_intents, language_of, localized, navigation_qu
                          private_request, replacement_certificate_request,
                          requires_clarification, safe_question)
 
-from src.tuition import render_tuition, requests_program_tuition
+from src.programs import tuition_programs
+from src.tuition import render_tuition
 
 logger = logging.getLogger(__name__)
 
@@ -154,11 +155,29 @@ class ChatService:
         query = self.rewrite(safe_question(question), safe_history)
         if self.student_support and not intents:
             intents = classify_intents(query)
-        tuition_question = self.student_support and requests_program_tuition(query)
-        campus_question = self.student_support and (tuition_question or has_university_context(query))
+        programs = tuition_programs(query) if self.student_support else ()
+        campus_question = self.student_support and has_university_context(query)
         if self.student_support and query != question and mentions_other_institution(query):
             return Answer(outside, "out_of_scope", elapsed_ms=(perf_counter() - started) * 1000)
-        candidate_limit = self.limit * 3 if self.reranker or tuition_question else self.limit
+        if programs:
+            matches = self.retriever.search_program_fees(programs)
+            tuition = render_tuition(matches, programs, query, language)
+            if tuition:
+                answer, citations, current_unverified = tuition
+                return Answer(answer, "unverified" if current_unverified else "university", citations,
+                              len(matches), (perf_counter() - started) * 1000, intents)
+            message = localized(
+                language,
+                "I could not verify official fees for the requested program and admission session. Check the SEU admissions portal for the applicable schedule.",
+                "উল্লিখিত প্রোগ্রাম ও ভর্তি সেশনের অফিসিয়াল ফি যাচাই করা যায়নি। প্রযোজ্য ফি এসইউর ভর্তি পোর্টালে দেখুন।",
+                "Requested program ar session er official fee verify kora jayni. SEU admission portal e applicable fee dekhun.",
+            )
+            source = self.student_sources["seu-admission"]
+            return Answer(message, "unverified", [{
+                "id": 1, "source_id": source["id"], "title": source["title"], "url": source["source_url"],
+                "potentially_outdated": False,
+            }], len(matches), (perf_counter() - started) * 1000, intents)
+        candidate_limit = self.limit * 3 if self.reranker else self.limit
         matches = self.retriever.search(query, candidate_limit)
         clauses = re.split(r"\?\s+|\s+(?:and|also)\s+(?=(?:how|where|what|when|who|can|does)\b)|\s+(?:আর|এবং)\s+", query, flags=re.I)
         if self.student_support and len(clauses) > 1:
@@ -171,19 +190,6 @@ class ChatService:
                 for match in matches:
                     combined.setdefault(chunk_key(match.document), match)
                 matches = list(combined.values())[:candidate_limit]
-        if tuition_question:
-            tuition = render_tuition(matches, query, language)
-            if tuition:
-                answer, citation = tuition
-                return Answer(answer, "university", [citation], len(matches),
-                              (perf_counter() - started) * 1000, intents)
-            message = localized(
-                language, "I could not verify the CSE tuition figures for the requested admission session.",
-                "উল্লিখিত ভর্তি সেশনের সিএসই টিউশন ফি যাচাই করা যায়নি।",
-                "Ei admission session er CSE tuition verify kora jayni.",
-            )
-            return Answer(message, "unverified", retrieved_count=len(matches),
-                          elapsed_ms=(perf_counter() - started) * 1000, intents=intents)
         if self.reranker:
             matches = self.reranker.rank(query, matches)[:self.limit]
         unknown = localized(language, UNVERIFIED_REPLY, "বিশ্ববিদ্যালয়ের প্রাপ্ত তথ্য থেকে উত্তরটি যাচাই করা যায়নি।", "Official university source theke uttor verify kora jayni.")

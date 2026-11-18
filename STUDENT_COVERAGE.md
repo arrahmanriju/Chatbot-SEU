@@ -6,7 +6,7 @@ The archive contains 333 records, no supplied update timestamps, and no exact du
 | --- | --- | --- |
 | Admission and Enrollment | [SEU Online Admission](https://admission.seu.edu.bd/apply/) | Current intake dates, document checklists, transfer-credit rules |
 | Course Registration and Advising | [SEU Software Services Status](https://status.seu.edu.bd/) | Term-specific windows, prerequisites, section-change and add/drop procedures |
-| Tuition Fees and Payment | [SEU Software Services Status](https://status.seu.edu.bd/), [Fall 2025 BSc in CSE tuition](https://seu.edu.bd/uploads/media/2025/07/Admission_Prospectus_Fall_2025.pdf) | Current fee schedules, penalties, refunds and reconciliation |
+| Tuition Fees and Payment | [SEU Software Services Status](https://status.seu.edu.bd/), [Official program tuition and admission charges by session](https://seu.edu.bd/uploads/media/2025/07/Admission_Prospectus_Fall_2025.pdf) | Current fee schedules, penalties, refunds and reconciliation |
 | Scholarships and Tuition Waivers | [SEU Software Services Status](https://status.seu.edu.bd/) | Current eligibility, renewal, appeals and stacking rules |
 | Academic Calendar and Class Schedule | [SEU Student Code of Conduct](https://static.seu.edu.bd/uploads/media/2024/11/17313158546731c88ef2861.pdf), [Spring 2026 Freshers’ Reception](https://seu.edu.bd/southeast-university-welcomes-spring-2026-freshers-with-grand-orientation-programs) | Authoritative current term calendars and section timetables |
 | Examinations and Grading | [SEU Software Services Status](https://status.seu.edu.bd/), [SEU Student Code of Conduct](https://static.seu.edu.bd/uploads/media/2024/11/17313158546731c88ef2861.pdf) | Current grading, recheck and makeup exam procedures |

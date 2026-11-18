@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from src.hybrid import tokenize
+from src.programs import tuition_programs
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 CATEGORIES = json.loads((DATA / "student_categories.json").read_text(encoding="utf-8"))
@@ -42,7 +43,11 @@ def classify_intents(question):
         ))
         if score:
             candidates.append((score, category))
-    return [category for _, category in sorted(candidates, key=lambda item: -item[0])][:3]
+    ranked = [category for _, category in sorted(candidates, key=lambda item: -item[0])]
+    if tuition_programs(question):
+        first = "Tuition Fees and Payment"
+        ranked = [first, *(category for category in ranked if category != first)]
+    return ranked[:3]
 
 
 def private_request(question):

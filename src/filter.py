@@ -2,6 +2,8 @@
 from pathlib import Path
 import re
 
+from src.programs import ACADEMIC_TOPIC, OTHER_TOPIC, identify_programs, tuition_programs
+
 GREETINGS = {
     "hi", "hello", "hey", "hii", "hiya", "yo",
     "good morning", "good afternoon", "good evening",
@@ -57,6 +59,14 @@ def mentions_other_institution(question: str) -> bool:
 
 def has_university_context(question: str) -> bool:
     """Recognize student topics in the context of a single-university assistant."""
-    return bool(not mentions_other_institution(question) and (
-        (STUDENT_TOPIC.search(question) and not NON_CAMPUS_TOPIC.search(question)) or re.search(r"\bseu\b|southeast university|সাউথইস্ট", question, re.I)
-    ))
+    if mentions_other_institution(question):
+        return False
+    explicit_seu = re.search(r"\bseu\b|southeast university|সাউথইস্ট", question, re.I)
+    if explicit_seu or tuition_programs(question):
+        return True
+    if OTHER_TOPIC.search(question) and identify_programs(question) and not ACADEMIC_TOPIC.search(question):
+        return False
+    return bool(
+        not NON_CAMPUS_TOPIC.search(question)
+        and (STUDENT_TOPIC.search(question) or (identify_programs(question) and ACADEMIC_TOPIC.search(question)))
+    )

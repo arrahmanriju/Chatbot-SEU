@@ -88,6 +88,9 @@ class LazyRetriever:
     def search(self, question, limit):
         return get_retriever().search(question, limit)
 
+    def search_program_fees(self, programs):
+        return get_retriever().search_program_fees(programs)
+
 
 @lru_cache(maxsize=1)
 def get_service():
