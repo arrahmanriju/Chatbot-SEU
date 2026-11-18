@@ -1,6 +1,6 @@
 # Chatbot-SEU 2.0 · Student Support Assistant
 
-Chatbot-SEU is a retrieval-augmented assistant for Southeast University, Bangladesh. It uses the bundled website archive and can ingest curated notices, calendars, and text-based PDFs. Streamlit offers English and Bangla interfaces, conversation reset, source links, and feedback. FastAPI serves the chat and source catalog, and SQLite stores feedback.
+Chatbot-SEU is a retrieval-augmented assistant for Southeast University, Bangladesh. It uses the bundled website archive and can ingest curated notices, calendars, and text-based PDFs. Streamlit offers English and Bangla interfaces, conversation reset, source links, and feedback. The shared chat service can run directly in Streamlit or through FastAPI. SQLite stores feedback.
 
 ## Architecture
 
@@ -8,22 +8,23 @@ Chatbot-SEU is a retrieval-augmented assistant for Southeast University, Banglad
 flowchart LR
     Data[JSON, JSONL, curated PDFs] --> Build[Offline ingestion and chunking]
     Build --> Index[FAISS vectors and JSON document manifest]
-    UI[Streamlit] --> API[FastAPI]
+    UI[Streamlit] -->|Optional HTTP backend| API[FastAPI]
+    UI -->|Standalone| Triage
     API --> Triage[Language, student intent, and private-record routing]
     Triage --> Rewrite[Resolve ambiguous follow-ups]
     Rewrite --> Search[FAISS and BM25 with reciprocal rank fusion]
     Index --> Search
     Search --> Rerank[Optional multilingual cross-encoder]
     Rerank --> Answer[Groq answer with validated source IDs]
-    Answer --> API
-    API --> Feedback[SQLite feedback]
+    Answer --> UI
+    UI --> Feedback[SQLite feedback]
 ```
 
 Greetings bypass inference in the chat service. Other requests search the same chunks through sentence-transformer embeddings and BM25, then fuse the rankings with an extra signal for explicitly named page titles. An optional cross-encoder reranks a bounded candidate set. The answer prompt treats retrieved text as untrusted data and asks Groq to classify scope, abstain when evidence is insufficient, and cite only supplied evidence. The service validates the citation IDs and constructs links from the source metadata. This checks references, while claim-level grounding still needs evaluation.
 
 ## Local setup
 
-Use Python 3.12 and run from the repository root.
+Use Python 3.11 or 3.12 and run from the repository root.
 
 ```sh
 python -m venv .venv
@@ -34,18 +35,38 @@ python -m src.store
 python -m uvicorn src.api:app --host 127.0.0.1 --port 8000
 ```
 
-In a second shell with the same environment, run `python -m streamlit run app.py`. The app opens at http://localhost:8501. On Windows hosts whose Application Control policy blocks the FAISS extension, run the backend and index builder in Ubuntu under WSL or in the Linux container. Tests run with `python -m unittest discover -s tests -v`.
+In a second shell with the same environment, set `SEU_API_URL=http://localhost:8000` and run `python -m streamlit run app.py`. For standalone local use, leave `SEU_API_URL` unset and run Streamlit directly. The app opens at http://localhost:8501. On Windows hosts whose Application Control policy blocks the FAISS extension, run the backend and index builder in Ubuntu under WSL or in the Linux container. Tests run with `python -m unittest discover -s tests -v`.
 
 | Environment variable | Purpose |
 | --- | --- |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Backend authentication and completion model. Defaults to `openai/gpt-oss-20b` after the original Llama model was retired for free and developer-tier accounts. |
-| `SEU_API_URL` | Backend URL used by Streamlit |
+| `SEU_API_URL` | Optional FastAPI URL. Leave unset for the in-process Streamlit deployment. |
 | `SEU_INDEX_DIR` | Index directory used by FastAPI |
 | `SEU_EMBEDDING_MODEL` | Build and query model. Defaults to MiniLM. Try `BAAI/bge-m3` for multilingual dense retrieval and rebuild the index. |
 | `RETRIEVAL_CANDIDATES`, `RETRIEVAL_LIMIT`, `RRF_K`, `MIN_DENSE_SCORE` | Candidate depth, final evidence count, rank-fusion constant, and minimum cosine score |
 | `RERANK_MODEL` | Optional cross-encoder, for example `BAAI/bge-reranker-v2-m3` |
 | `CORS_ORIGINS` | Comma-separated permitted browser origins. Empty by default. |
 | `FEEDBACK_DB` | SQLite feedback file path |
+
+## Streamlit Community Cloud
+
+1. Push the deployment branch to GitHub. In Community Cloud, create an app for the `arrahmanriju/Chatbot-SEU` repository, choose the branch containing this change, and use `app.py` as the app file.
+2. Open **Advanced settings** and choose **Python 3.11**.
+3. Add the Groq key to **Secrets** as a top-level TOML value.
+
+   ```toml
+   GROQ_API_KEY = "replace-with-your-key"
+   ```
+
+4. Deploy and watch the first session's startup logs. Leave `SEU_API_URL` unset so Streamlit runs the existing LangChain, FAISS, and Groq service in-process. Set it only for a separately hosted FastAPI backend.
+
+The checked-in JSONL archive, verified student sources, and official overlay are included in the default corpus. On first access the app builds a missing `vectorstore/faiss_index/index.zip` from those files, loads the existing MiniLM embedding model, and caches the shared retriever and service across sessions with `st.cache_resource`. A restart can reuse an existing local index. Community Cloud instances can be replaced, so the local index and SQLite feedback file are ephemeral. A fresh instance may need to download MiniLM and build once. The requirements use the official Linux CPU PyTorch wheel. The optional cross-encoder is disabled by default and adds a separate model download when enabled.
+
+Local verification used Linux and Python 3.11.18 with the production requirements. An empty model cache required a model download. With the model cached and no FAISS directory, the final batch size of eight built 1,632 vectors in 48 seconds and peaked at about 743 MiB RSS through two chat queries. Reruns reused the cached service, and an existing-index reload within the same process took 0.24 seconds. Cloud cold-start time and available memory vary. Watch the first hosted startup, particularly if the instance receives memory near the low end of the published resource range.
+
+Use deployment secrets or the environment for `GROQ_API_KEY` and keep any local `.streamlit/secrets.toml` private. The app shows an actionable error if the model download or index build fails. Use the deployment logs and resource indicators to check the hosted machine on its first run.
+
+[Deploy on Community Cloud](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy) ? [Secrets management](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management) ? [Community Cloud resource limits](https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app)
 
 ## Student support
 

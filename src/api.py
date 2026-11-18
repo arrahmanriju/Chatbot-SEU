@@ -2,7 +2,6 @@
 import logging
 import os
 import sqlite3
-from contextlib import closing
 from dataclasses import asdict
 from functools import lru_cache
 from pathlib import Path
@@ -16,9 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 from src.freshness import potentially_outdated
-from src.hybrid import HybridRetriever
-from src.reranker import Reranker
-from src.service import ChatService, source_url
+from src.runtime import create_retriever, create_service, save_feedback
+from src.service import source_url
 from src.store import INDEX_FILE, index_directory, load_index
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,12 +74,7 @@ class FeedbackRequest(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_retriever():
-    store = load_index(index_directory())
-    return HybridRetriever(
-        store, candidates=int(os.getenv("RETRIEVAL_CANDIDATES", "16")),
-        rrf_k=int(os.getenv("RRF_K", "60")),
-        min_dense_score=float(os.getenv("MIN_DENSE_SCORE", "0.1")),
-    )
+    return create_retriever(load_index(index_directory()))
 
 
 class LazyRetriever:
@@ -97,9 +90,7 @@ class LazyRetriever:
 
 @lru_cache(maxsize=1)
 def get_service():
-    rerank_model = os.getenv("RERANK_MODEL")
-    return ChatService(LazyRetriever(), limit=int(os.getenv("RETRIEVAL_LIMIT", "5")),
-                       reranker=Reranker(rerank_model) if rerank_model else None)
+    return create_service(LazyRetriever())
 
 
 @app.get("/health")
@@ -145,15 +136,8 @@ def sources():
 
 @app.post("/feedback")
 def feedback(request: FeedbackRequest):
-    database = Path(os.getenv("FEEDBACK_DB") or ROOT / "vectorstore" / "feedback.sqlite3")
     try:
-        database.parent.mkdir(parents=True, exist_ok=True)
-        with closing(sqlite3.connect(database)) as connection, connection:
-            connection.execute("CREATE TABLE IF NOT EXISTS feedback "
-                               "(request_id TEXT PRIMARY KEY, helpful INTEGER NOT NULL)")
-            connection.execute("INSERT INTO feedback VALUES (?, ?) "
-                               "ON CONFLICT(request_id) DO UPDATE SET helpful = excluded.helpful",
-                               (str(request.request_id), request.helpful))
+        save_feedback(request.request_id, request.helpful)
     except (OSError, sqlite3.Error) as exc:
         logger.error("Feedback storage failed (%s)", type(exc).__name__)
         raise HTTPException(503, "Feedback is temporarily unavailable.") from None

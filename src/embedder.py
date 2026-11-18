@@ -8,5 +8,5 @@ def get_embedding_model(model_name: str = DEFAULT_MODEL):
     from langchain_huggingface import HuggingFaceEmbeddings
 
     return HuggingFaceEmbeddings(
-        model_name=model_name, encode_kwargs={"normalize_embeddings": True}
+        model_name=model_name, encode_kwargs={"normalize_embeddings": True, "batch_size": 8}
     )

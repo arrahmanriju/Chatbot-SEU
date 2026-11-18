@@ -20,3 +20,9 @@ __pycache__/
 /.worktrees/
 /.verify-deps/
 /.verify-linux/
+.streamlit/secrets.toml
+.cache/
+models--*/
+*.safetensors
+pytorch_model*.bin
+/.hf-cache/

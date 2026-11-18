@@ -1,15 +1,23 @@
-"""Streamlit frontend for the Chatbot-SEU API."""
+"""Run Chatbot-SEU directly in Streamlit or against an optional HTTP backend."""
 import json
+import logging
 import os
+from dataclasses import asdict
+from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
 from src.config import load_environment
+from src.runtime import create_retriever, create_service, load_or_build_index, save_feedback
+from src.store import INDEX_FILE, index_directory
 from src.student import CATEGORIES, DATA, private_request, safe_question
 
 load_environment()
-API = (os.getenv("SEU_API_URL") or "http://localhost:8000").rstrip("/")
+API = (os.getenv("SEU_API_URL") or "").strip().rstrip("/")
+logger = logging.getLogger(__name__)
 st.set_page_config(page_title="Southeast University Assistant", page_icon="🎓")
 st.title("Southeast University Assistant")
 
@@ -36,10 +44,51 @@ if st.sidebar.button("নতুন কথোপকথন" if bn else "New conver
     st.rerun()
 
 
+@st.cache_resource(show_spinner=False, max_entries=1)
+def standalone_service(directory: Path):
+    return create_service(create_retriever(load_or_build_index(directory)))
+
+
+service = None
+if not API:
+    if not os.getenv("GROQ_API_KEY", "").strip():
+        try:
+            key = st.secrets.get("GROQ_API_KEY")
+        except StreamlitSecretNotFoundError:
+            key = None
+        if isinstance(key, str) and key.strip():
+            os.environ["GROQ_API_KEY"] = key.strip()
+    if not os.getenv("GROQ_API_KEY", "").strip():
+        st.warning("Set GROQ_API_KEY in Streamlit secrets or the environment to enable generated answers.")
+
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    os.environ.setdefault("OMP_NUM_THREADS", "2")
+    os.environ.setdefault("MKL_NUM_THREADS", "2")
+    directory = index_directory()
+    building = not (directory / INDEX_FILE).is_file()
+    try:
+        with st.spinner("Preparing the university knowledge base?" if building else "Loading the knowledge base?"):
+            service = standalone_service(directory)
+    except Exception as exc:
+        logger.error("Knowledge-base startup failed (%s)", type(exc).__name__)
+        st.error("The university knowledge base could not be built or loaded. Check the deployment logs, "
+                 "available memory, model download access, and the bundled JSONL files.")
+        st.stop()
+
+
 def send(path, payload):
-    response = httpx.post(f"{API}/{path}", json=payload, timeout=90)
-    response.raise_for_status()
-    return response.json()
+    if API:
+        response = httpx.post(f"{API}/{path}", json=payload, timeout=90)
+        response.raise_for_status()
+        return response.json()
+
+    if path == "feedback":
+        save_feedback(payload["request_id"], payload["helpful"])
+        return {"saved": True}
+
+    history = [(turn["question"], turn["answer"]) for turn in payload["history"]]
+    answer = service.chat(payload["question"], history, payload["language"])
+    return {"request_id": str(uuid4()), **asdict(answer)}
 
 
 def render_answer(reply):
@@ -65,7 +114,8 @@ def render_answer(reply):
                 send("feedback", {"request_id": request_id, "helpful": bool(rating)})
                 st.session_state[request_id] = True
                 st.rerun()
-            except (httpx.HTTPError, ValueError):
+            except Exception as exc:
+                logger.error("Feedback request failed (%s)", type(exc).__name__)
                 st.error("মতামত জমা হয়নি।" if bn else "Feedback could not be saved.")
     else:
         st.caption("মতামত জমা হয়েছে।" if bn else "Feedback saved.")
@@ -94,6 +144,7 @@ if question and question.strip():
                                       "language": {"Auto": "auto", "English": "en", "বাংলা": "bn"}[language]})
             st.session_state.turns.append({"question": history_question, "reply": reply})
             render_answer(reply)
-        except (httpx.HTTPError, ValueError):
+        except Exception as exc:
+            logger.error("Chat request failed (%s)", type(exc).__name__)
             st.error("সহকারী এখন উত্তর দিতে পারছে না। আবার চেষ্টা করুন।" if bn else
                      "The assistant is temporarily unavailable. Please try again.")
