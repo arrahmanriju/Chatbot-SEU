@@ -23,11 +23,12 @@ def cosine_relevance(squared_distance: float) -> float:
     return max(0.0, min(1.0, 1.0 - squared_distance / 2.0))
 
 
-def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=None):
+def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=None, *,
+                      updates_path=None, append_from=None):
     import faiss
     from langchain_community.vectorstores import FAISS
 
-    from src.loader import DEFAULT_DATA_PATH, VERIFIED_STUDENT_PATH, load_university_data
+    from src.loader import DEFAULT_DATA_PATH, OFFICIAL_UPDATES_PATH, VERIFIED_STUDENT_PATH, load_university_data
     from src.splitter import split_documents
 
     target = Path(persist_dir)
@@ -35,6 +36,16 @@ def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=N
     documents = load_university_data(data_path or DEFAULT_DATA_PATH)
     if data_path is None or Path(data_path).resolve() == DEFAULT_DATA_PATH.resolve():
         documents.extend(load_university_data(VERIFIED_STUDENT_PATH))
+        overlay = Path(updates_path) if updates_path is not None else OFFICIAL_UPDATES_PATH
+        if overlay.exists():
+            documents.extend(load_university_data(overlay))
+    superseded = {old: str(doc.metadata["id"]) for doc in documents
+                  if not doc.metadata.get("superseded_by")
+                  for old in doc.metadata.get("supersedes", ())}
+    for doc in documents:
+        replacement = superseded.get(str(doc.metadata.get("id")))
+        if replacement:
+            doc.metadata["superseded_by"] = replacement
     records = {}
     for chunk in split_documents(documents):
         record = {"content": chunk.page_content, "metadata": chunk.metadata}
@@ -50,9 +61,21 @@ def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=N
     if not chunks:
         raise ValueError("The university corpus produced no searchable chunks.")
 
-    vectorstore = FAISS.from_documents(
-        chunks, get_embedding_model(model), relevance_score_fn=cosine_relevance
-    )
+    serialized = [{"content": chunk.page_content, "metadata": chunk.metadata} for chunk in chunks]
+    baseline = target if append_from is None else Path(append_from)
+    try:
+        previous = read_manifest(baseline)
+    except (OSError, ValueError, BadZipFile, KeyError):
+        previous = {}
+    old_docs = previous.get("documents", [])
+    if (previous.get("model") == model and old_docs and len(old_docs) < len(serialized)
+            and serialized[:len(old_docs)] == old_docs):
+        vectorstore = load_index(baseline)
+        vectorstore.add_documents(chunks[len(old_docs):])
+    else:
+        vectorstore = FAISS.from_documents(
+            chunks, get_embedding_model(model), relevance_score_fn=cosine_relevance
+        )
     target.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(dir=target, suffix=".tmp", delete=False) as temporary:
         temp_path = Path(temporary.name)
@@ -63,10 +86,7 @@ def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=N
                 "version": 1,
                 "model": model,
                 "fingerprint": fingerprint,
-                "documents": [
-                    {"content": chunk.page_content, "metadata": chunk.metadata}
-                    for chunk in chunks
-                ],
+                "documents": serialized,
             }, ensure_ascii=False))
         os.replace(temp_path, target / INDEX_FILE)
     finally:

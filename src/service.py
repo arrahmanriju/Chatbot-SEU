@@ -18,6 +18,7 @@ from src.student import (classify_intents, language_of, localized, navigation_qu
 
 from src.programs import classify_fee, fee_record_programs
 from src.tuition import render_tuition
+from src.support import support_reply
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,10 @@ class ChatService:
                 "id": 1, "source_id": source["id"], "title": source["title"], "url": source["source_url"],
                 "potentially_outdated": False,
             }], len(matches), (perf_counter() - started) * 1000, intents)
+        guidance = support_reply(self.retriever, query) if self.student_support and language == "en" else None
+        if guidance:
+            message, citation, route = guidance
+            return Answer(message, route, [citation], 1, (perf_counter() - started) * 1000, intents)
         candidate_limit = self.limit * 3 if self.reranker else self.limit
         matches = self.retriever.search(query, candidate_limit)
         clauses = re.split(r"\?\s+|\s+(?:and|also)\s+(?=(?:how|where|what|when|who|can|does)\b)|\s+(?:আর|এবং)\s+", query, flags=re.I)
@@ -207,6 +212,9 @@ class ChatService:
             {"id": position, "title": match.document.metadata.get("title"),
              "text": match.document.page_content[:2000],
              "updated_at": match.document.metadata.get("updated_at"),
+             "academic_session": match.document.metadata.get("academic_session"),
+             "effective_date": match.document.metadata.get("effective_date"),
+             "superseded_by": match.document.metadata.get("superseded_by"),
              "potentially_outdated": potentially_outdated(match.document.metadata.get("updated_at"))}
             for position, match in enumerate(matches, start=1)
         ]

@@ -7,6 +7,7 @@ DEFAULT_DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "old_seu_webs
 
 
 VERIFIED_STUDENT_PATH = DEFAULT_DATA_PATH.with_name("verified_student_sources.jsonl")
+OFFICIAL_UPDATES_PATH = DEFAULT_DATA_PATH.with_name("official_updates.jsonl")
 
 
 def read_records(path):
@@ -43,6 +44,14 @@ def load_university_data(json_path: str | Path = DEFAULT_DATA_PATH):
             metadata["program"] = record["program"]
         if isinstance(record.get("fee_type"), list) and all(isinstance(value, str) for value in record["fee_type"]):
             metadata["fee_type"] = record["fee_type"]
+        for key in ("academic_session", "effective_date", "document_type", "support_topic", "guidance_gap",
+                    "superseded_by"):
+            if isinstance(record.get(key), str):
+                metadata[key] = record[key]
+        if metadata.get("fee_schedule") and not metadata.get("admission_session") and metadata.get("academic_session"):
+            metadata["admission_session"] = metadata["academic_session"]
+        if isinstance(record.get("supersedes"), list):
+            metadata["supersedes"] = [str(value) for value in record["supersedes"]]
         title = metadata["title"]
         pdf_path = record.get("pdf_path")
         if pdf_path:
@@ -58,6 +67,8 @@ def load_university_data(json_path: str | Path = DEFAULT_DATA_PATH):
             if not isinstance(content, str):
                 raise ValueError(f"Corpus record {number} requires clean_text or pdf_path.")
             bodies = [(content, None)]
+            if metadata.get("support_topic") and metadata.get("verification") == "official_public":
+                metadata["guidance_text"] = content
         for text, page in bodies:
             clean = re.sub(r"[^\S\r\n]+", " ", text).strip()
             if not clean:

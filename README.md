@@ -75,6 +75,23 @@ The builder skips unchanged corpora and deduplicates exact chunk records. Change
 
 Interactive OpenAPI docs are available at `/docs` on the backend.
 
+### Updating public knowledge
+
+The original 333-record website archive and the curated student sources are retained. The default FAISS build also reads `data/official_updates.jsonl`, an additive overlay generated from approved sources.
+
+```sh
+python -m scripts.update_knowledge_base --dry-run
+python -m scripts.update_knowledge_base --apply
+```
+
+The default input is `scripts/approved_seu_sources.jsonl`. For a new batch, pass `--input path/to/approved.jsonl`. A reviewed record can supply its own stable ID or use the generated ID based on its official URL and scope. Provide `source_url`, `title`, and `clean_text`, plus any known `category`, `program`, `academic_session`, `effective_date`, `retrieved_at`, or `document_type`. Use an ISO date for `effective_date` and a timezone-qualified ISO timestamp for `retrieved_at`.
+
+To extract content from an approved public HTML, PDF, or plain-text URL, set `"fetch": true` on the manifest row and preview it with `--fetch --dry-run`. Review the extracted text and add its printed `expected_sha256` before running `--fetch --apply`. The collector checks robots rules, limits request frequency and size, and stops on access errors or redirects. Review public sources for personal records and omit student-specific documents. An update with failed records leaves the active index and overlay untouched.
+
+Exact duplicates are skipped. Edited overlay records keep a historical copy, and replacements of immutable records use a new ID with an explicit `supersedes` list. The updater stages and validates the merged index, saves a copy of the prior artifact under `vectorstore/kb-backups/`, and publishes to the configured FAISS location. It appends new vectors when the existing chunk prefix and embedding model match. A changed prefix requires a full rebuild. Restart FastAPI after applying changes so its cached retriever reopens the index.
+
+The first overlay adds reviewed information on admission requirements, scholarships, UMS registration and advising, exams and grades, archived notices, career programs, departmental information, library borrowing, and certificate and convocation listings. Public sources verified the existence of several UMS functions. Exact current registration steps, incomplete-advising consequences, internship forwarding-letter instructions, and the graduation-document checklist remain unverified. An archived academic calendar is labeled with its original term.
+
 ## Student benchmark
 
 Run `python -m evaluation.student --baseline vectorstore/student-baseline` with the archive-only index preserved before upgrading. For a reconstructed baseline, build the default corpus in the previous checkout and point `--baseline` at its index directory. The comparison uses the same MiniLM embedding model and Recall@5/MRR@5 computed by matching official URLs. Retrieval metrics use the 36 held-out prompts with verified reference sources. Category accuracy uses all 45 held-out prompts and measures the top predicted category.

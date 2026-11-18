@@ -77,12 +77,21 @@ class HybridRetriever:
                 documents.setdefault(schedule["program"], []).append(doc)
         return documents
 
+    def search_support(self, topic):
+        for key in self.store.index_to_docstore_id.values():
+            document = self.store.docstore.search(key)
+            metadata = document.metadata
+            if metadata.get("support_topic") == topic and not metadata.get("superseded_by"):
+                return document
+        return None
+
     def search_program_fees(self, programs, fee_type=None):
         return [
             Match(doc, None)
             for program in programs
             for doc in self.fee_documents.get(program, ())
-            if fee_type is None or fee_type in doc.metadata.get("fee_type", ())
+            if not doc.metadata.get("superseded_by")
+            and (fee_type is None or fee_type in doc.metadata.get("fee_type", ()))
         ]
 
     def search(self, question: str, limit: int = 5):
@@ -113,4 +122,16 @@ class HybridRetriever:
              [chunk_key(doc) for doc in title_docs]),
             k=self.rrf_k, weights=(1.0, 1.0, 1.5),
         )
-        return [matches[key] for key in ranked[:limit]]
+        years = set(re.findall(r"\b20[0-9]{2}\b", question))
+        if re.search(r"\b(current|latest|today|now|upcoming)\b", question, re.I):
+            years.clear()
+        result = []
+        for key in ranked:
+            match = matches[key]
+            metadata = match.document.metadata
+            session = metadata.get("academic_session") or metadata.get("admission_session") or ""
+            if not metadata.get("superseded_by") or any(year in session for year in years):
+                result.append(match)
+                if len(result) == limit:
+                    break
+        return result
