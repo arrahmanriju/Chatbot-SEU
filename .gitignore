@@ -16,3 +16,13 @@ __pycache__/
 # OS/editor noise
 .DS_Store
 .vscode/
+!/.env.example
+/.worktrees/
+/.verify-deps/
+/.verify-linux/
+.streamlit/secrets.toml
+.cache/
+models--*/
+*.safetensors
+pytorch_model*.bin
+/.hf-cache/

@@ -1,615 +1,203 @@
+# Chatbot-SEU 2.0 · Student Support Assistant
 
-# 🎓 Chatbot-SEU
-### AI-Powered University Assistant Using Retrieval-Augmented Generation (RAG)
+Chatbot-SEU is a retrieval-augmented assistant for Southeast University, Bangladesh. It uses the bundled website archive and can ingest curated notices, calendars, and text-based PDFs. Streamlit offers English and Bangla interfaces, conversation reset, source links, and feedback. The shared chat service can run directly in Streamlit or through FastAPI. SQLite stores feedback.
 
-[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Chatbot-FF4B4B?logo=streamlit)](https://streamlit.io/)
-[![LangChain](https://img.shields.io/badge/LangChain-RAG-green)](https://www.langchain.com/)
-[![FAISS](https://img.shields.io/badge/FAISS-Vector_Search-orange)](https://github.com/facebookresearch/faiss)
-[![Groq](https://img.shields.io/badge/Groq-LLM_Inference-purple)](https://groq.com/)
-
-**Chatbot-SEU** is an AI-powered university information assistant developed to help students and prospective applicants of **Southeast University (SEU), Bangladesh** access academic and administrative information through natural language conversations.
-
-The system uses **Retrieval-Augmented Generation (RAG)**, combining semantic search with a Large Language Model (LLM) to retrieve relevant university information and generate context-aware responses.
-
-The project aims to make university information more accessible while reducing the need to manually search multiple web pages.
-
-**GitHub Repository:** [Chatbot-SEU](https://github.com/arrahmanriju/Chatbot-SEU)
-
----
-
-## 📌 Problem Statement
-
-University students frequently need information about admission, tuition fees, academic programs, course registration, scholarships, and university policies.
-
-However, this information is often distributed across different university website pages and documents, making it time-consuming to find.
-
-Traditional FAQ systems are limited to predefined questions and may struggle with natural language variations.
-
-**Chatbot-SEU addresses this problem by providing a conversational interface powered by RAG.**
-
-Instead of relying entirely on an LLM's pretrained knowledge, the chatbot retrieves information from a university-specific knowledge base before generating an answer.
-
----
-
-## 🎯 Project Objectives
-
-- Develop an intelligent university question-answering system.
-- Provide quick access to Southeast University information.
-- Implement Retrieval-Augmented Generation using LangChain.
-- Retrieve relevant information using semantic similarity search.
-- Reduce unsupported responses through context-grounded generation.
-- Support conversational follow-up questions.
-- Create an expandable knowledge base for university information.
-- Provide a user-friendly chatbot interface.
-
----
-
-## ✨ Key Features
-
-| Feature | Description |
-|---|---|
-| University Q&A | Answers questions related to Southeast University |
-| RAG Pipeline | Combines information retrieval with LLM generation |
-| Semantic Search | Retrieves relevant information using vector embeddings |
-| FAISS Vector Database | Stores and searches document embeddings |
-| Llama LLM | Generates natural language answers using Groq |
-| Conversation Context | Uses recent chat history for follow-up questions |
-| Query Filtering | Attempts to identify university-related questions |
-| Streamlit Interface | Provides an interactive web-based chatbot |
-| JSONL Knowledge Base | Stores structured university website information |
-| Modular Architecture | Separates retrieval, embeddings, filtering, and generation |
-| Docker Support | Supports containerized execution and deployment |
-
----
-
-## 🏗️ System Architecture
-
-The project follows a Retrieval-Augmented Generation architecture with two major pipelines:
-
-1. **Knowledge Base Preparation:** Processes university information and builds the vector database.
-2. **Question Answering:** Retrieves relevant information and generates an LLM response.
-
-```mermaid
-flowchart TD
-    subgraph ING["Knowledge Base Preparation"]
-        A["SEU Public Website Data"] --> B["JSONL Knowledge Base"]
-        B --> C["Document Loader"]
-        C --> D["Text Cleaning and Chunking"]
-        D --> E["Sentence Transformer Embeddings"]
-        E --> F[("FAISS Vector Database")]
-    end
-
-    subgraph RAG["RAG Question Answering Pipeline"]
-        G["Student Question"] --> H["Streamlit Chat Interface"]
-        H --> I["Question Classification"]
-
-        I -->|"Greeting / Meta"| J["Instant Response"]
-        I -->|"University Query"| K["University Relevance Filter"]
-        I -->|"Off-topic Query"| L["Polite Refusal"]
-
-        K --> M["Semantic Retriever"]
-        F --> M
-        M --> N["Top-K Relevant Chunks"]
-
-        N --> O["Context + Prompt Builder"]
-        P["Recent Conversation History"] --> O
-
-        O --> Q["Llama 3.3 via Groq API"]
-        Q --> R["Generated Answer"]
-        R --> H
-        J --> H
-        L --> H
-    end
-```
-
-### Architecture Explanation
-
-**1. Data Collection**
-
-University-related information is collected from publicly available Southeast University website content and stored in JSONL format.
-
-**2. Document Processing**
-
-The text is loaded, cleaned, and divided into smaller overlapping chunks to improve retrieval.
-
-**3. Embedding Generation**
-
-The Sentence Transformer model converts text chunks into numerical vector representations.
-
-**4. Vector Storage**
-
-Generated embeddings are stored in FAISS for efficient similarity searching.
-
-**5. Query Processing**
-
-When a student submits a question, the system checks the message type and whether it is relevant to the university.
-
-**6. Context Retrieval**
-
-The retriever identifies the most relevant document chunks based on semantic similarity.
-
-**7. Response Generation**
-
-Retrieved information and recent conversation history are passed to the Llama model through Groq.
-
-**8. Final Response**
-
-The generated answer is displayed in the Streamlit interface.
-
----
-
-## 🔄 RAG Workflow
-
-```mermaid
-sequenceDiagram
-    actor Student
-    participant UI as Streamlit
-    participant Filter as Query Filter
-    participant DB as FAISS
-    participant RAG as RAG Pipeline
-    participant LLM as Groq / Llama
-
-    Student->>UI: Ask university question
-    UI->>Filter: Process user query
-
-    alt Relevant university query
-        Filter->>DB: Semantic similarity search
-        DB-->>RAG: Relevant document chunks
-        RAG->>LLM: Question + Context + History
-        LLM-->>RAG: Generated answer
-        RAG-->>UI: Final answer
-        UI-->>Student: Display response
-    else Out-of-scope query
-        Filter-->>UI: Polite fallback response
-        UI-->>Student: Display response
-    end
-```
-
----
-
-## 🛠️ Technology Stack
-
-| Component | Technology |
-|---|---|
-| Programming Language | Python |
-| Frontend | Streamlit |
-| RAG Framework | LangChain |
-| LLM | Llama 3.3 70B via Groq |
-| Embedding Model | sentence-transformers/all-MiniLM-L6-v2 |
-| Vector Database | FAISS |
-| Knowledge Base | JSONL |
-| Configuration | Python Dotenv |
-| Containerization | Docker |
-| Version Control | Git and GitHub |
-
-### Why These Technologies?
-
-**LangChain:** Helps organize the retrieval and LLM response generation pipeline.
-
-**FAISS:** Provides efficient vector similarity search without requiring a separate database server.
-
-**Sentence Transformers:** Converts university documents and user queries into semantic embeddings.
-
-**Groq:** Provides hosted LLM inference, removing the need to run a large language model locally.
-
-**Streamlit:** Enables rapid development of an interactive Python-based chatbot interface.
-
----
-
-## 📁 Project Structure
-
-The original RAG application is organized into the following modules:
-
-```text
-Chatbot-SEU/
-│
-├── app.py
-│
-├── src/
-│   ├── loader.py
-│   ├── splitter.py
-│   ├── embedder.py
-│   ├── store.py
-│   ├── filter.py
-│   ├── retriever.py
-│   ├── prompt_builder.py
-│   ├── llm.py
-│   └── chain.py
-│
-├── data/
-│   └── old_seu_website_cleaned.jsonl
-│
-├── vectorstore/
-│   └── faiss_index/          # Generated locally
-│
-├── .streamlit/
-│   └── config.toml
-│
-├── Dockerfile
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
-
-### Module Responsibilities
-
-| Module | Responsibility |
-|---|---|
-| `loader.py` | Loads university data from JSONL |
-| `splitter.py` | Divides documents into text chunks |
-| `embedder.py` | Initializes the embedding model |
-| `store.py` | Builds and saves the FAISS vector index |
-| `filter.py` | Handles message classification and relevance filtering |
-| `retriever.py` | Retrieves relevant document chunks |
-| `prompt_builder.py` | Constructs context-grounded LLM prompts |
-| `llm.py` | Communicates with the Groq API |
-| `chain.py` | Connects the full chatbot pipeline |
-| `app.py` | Runs the Streamlit user interface |
-
-> Note: The project structure may change as additional features are implemented.
-
----
-
-## 🗄️ Knowledge Base and Vector Database
-
-The chatbot uses a university-specific knowledge base created from publicly available information.
-
-The original dataset contains **333 records** extracted from Southeast University's website.
-
-### Knowledge Base Format
-
-Data is stored in JSONL format, where each line contains a separate JSON object.
-
-Example:
-
-```json
-{
-  "id": 1,
-  "title": "Southeast University Information",
-  "source_url": "https://seu.edu.bd/",
-  "clean_text": "Information about Southeast University..."
-}
-```
-
-### Document Processing Pipeline
+## Architecture
 
 ```mermaid
 flowchart LR
-    A["JSONL Documents"] --> B["Text Splitting"]
-    B --> C["Embedding Model"]
-    C --> D["Vector Embeddings"]
-    D --> E[("FAISS Index")]
+    Data[JSON, JSONL, curated PDFs] --> Build[Offline ingestion and chunking]
+    Build --> Index[FAISS vectors and JSON document manifest]
+    UI[Streamlit] -->|Optional HTTP backend| API[FastAPI]
+    UI -->|Standalone| Triage
+    API --> Triage[Language, student intent, and private-record routing]
+    Triage --> Rewrite[Resolve ambiguous follow-ups]
+    Rewrite --> Search[FAISS and BM25 with reciprocal rank fusion]
+    Index --> Search
+    Search --> Rerank[Optional multilingual cross-encoder]
+    Rerank --> Answer[Groq answer with validated source IDs]
+    Answer --> UI
+    UI --> Feedback[SQLite feedback]
 ```
 
-The existing system uses:
+Greetings bypass inference in the chat service. Other requests search the same chunks through sentence-transformer embeddings and BM25, then fuse the rankings with an extra signal for explicitly named page titles. An optional cross-encoder reranks a bounded candidate set. The answer prompt treats retrieved text as untrusted data and asks Groq to classify scope, abstain when evidence is insufficient, and cite only supplied evidence. The service validates the citation IDs and constructs links from the source metadata. This checks references, while claim-level grounding still needs evaluation.
 
-- Embedding model: `all-MiniLM-L6-v2`
-- Embedding dimensions: 384
-- Chunk size: 500 characters
-- Chunk overlap: 100 characters
-- Retrieval: Top 5 relevant chunks
+## Local setup
 
-The FAISS index is generated from the source documents rather than manually populated.
+Use Python 3.11 or 3.12 and run from the repository root.
 
-### Updating the Knowledge Base
-
-University information can be expanded by adding verified public records to the existing JSONL dataset.
-
-After updating the dataset, rebuild the vector index:
-
-```bash
+```sh
+python -m venv .venv
+# Activate .venv for your shell.
+python -m pip install -r requirements.txt
+# Copy .env.example to .env and set GROQ_API_KEY.
 python -m src.store
+python -m uvicorn src.api:app --host 127.0.0.1 --port 8000
 ```
 
-This allows the chatbot to use new university information without fine-tuning the LLM.
+In a second shell with the same environment, set `SEU_API_URL=http://localhost:8000` and run `python -m streamlit run app.py`. For standalone local use, leave `SEU_API_URL` unset and run Streamlit directly. The app opens at http://localhost:8501. On Windows hosts whose Application Control policy blocks the FAISS extension, run the backend and index builder in Ubuntu under WSL or in the Linux container. Tests run with `python -m unittest discover -s tests -v`.
 
----
+| Environment variable | Purpose |
+| --- | --- |
+| `GROQ_API_KEY`, `GROQ_MODEL` | Backend authentication and completion model. Defaults to `openai/gpt-oss-20b` after the original Llama model was retired for free and developer-tier accounts. |
+| `SEU_API_URL` | Optional FastAPI URL. Leave unset for the in-process Streamlit deployment. |
+| `SEU_INDEX_DIR` | Index directory used by FastAPI |
+| `SEU_EMBEDDING_MODEL` | Build and query model. Defaults to MiniLM. Try `BAAI/bge-m3` for multilingual dense retrieval and rebuild the index. |
+| `RETRIEVAL_CANDIDATES`, `RETRIEVAL_LIMIT`, `RRF_K`, `MIN_DENSE_SCORE` | Candidate depth, final evidence count, rank-fusion constant, and minimum cosine score |
+| `RERANK_MODEL` | Optional cross-encoder, for example `BAAI/bge-reranker-v2-m3` |
+| `CORS_ORIGINS` | Comma-separated permitted browser origins. Empty by default. |
+| `FEEDBACK_DB` | SQLite feedback file path |
 
-## 💬 Example Student Questions
+## Streamlit Community Cloud
 
-The chatbot is intended to help with questions such as:
+1. Push the deployment branch to GitHub. In Community Cloud, create an app for the `arrahmanriju/Chatbot-SEU` repository, choose the branch containing this change, and use `app.py` as the app file.
+2. Open **Advanced settings** and choose **Python 3.11**.
+3. Add the Groq key to **Secrets** as a top-level TOML value.
 
-### Admission and Tuition
+   ```toml
+   GROQ_API_KEY = "replace-with-your-key"
+   ```
 
-- What are the admission requirements for CSE?
-- What is the tuition fee for BBA?
-- How many credits are required for CSE?
-- What scholarships are available at SEU?
+4. Deploy and watch the first session's startup logs. Leave `SEU_API_URL` unset so Streamlit runs the existing LangChain, FAISS, and Groq service in-process. Set it only for a separately hosted FastAPI backend.
 
-### Academic Information
+The checked-in JSONL archive, verified student sources, and official overlay are included in the default corpus. On the first request that needs indexed evidence, the app builds a missing `vectorstore/faiss_index/index.zip` from those files, loads the existing MiniLM embedding model, and caches the shared retriever and service across sessions with `st.cache_resource`. A restart can reuse an existing local index. Community Cloud instances can be replaced, so the local index and SQLite feedback file are ephemeral. A fresh instance may need to download MiniLM and build once. Opening the page and chatting without retrieval leave the index unopened. A saved index can serve structured fees and curated guidance without loading MiniLM. The requirements use the official Linux CPU PyTorch wheel. The optional cross-encoder is disabled by default and adds a separate model download when enabled.
 
-- What programs are offered by Southeast University?
-- What is the university grading system?
-- How can students find academic information?
-- What are the requirements for different degree programs?
+### CPU and cache behavior
 
-### University Information
+`st.cache_resource` shares a lazy retrieval service across Streamlit sessions. Corpus and artifact revision checks trigger refresh on the next relevant request. The FAISS manifest includes a bundled-corpus fingerprint so updated JSONL data can be detected even when the index persists across restarts. A matching artifact is loaded, and a compatible append uses the existing incremental builder. Custom indexes with a separate corpus are refreshed when their artifact is replaced.
 
-- Where is Southeast University located?
-- What is the mission of Southeast University?
-- Which departments are available?
-- How can I find faculty information?
+The process shares one MiniLM instance by default. The retriever caches at most 128 exact query vectors in memory, keyed by a digest. New indexes start with an empty query cache. Set `SEU_CPU_THREADS` before startup to change the default of one PyTorch/OpenMP/BLAS thread. The app logs model load, document and query encoding, FAISS load/write, hybrid retrieval, and Groq duration. The logs omit prompt and student record text. Groq handles generation remotely.
 
-### Student Support
+One before/after run used Linux WSL, Python 3.11.18, the cached MiniLM files, a missing FAISS directory, and two Streamlit AppTest sessions. Groq was mocked during timing so provider latency would not affect results.
 
-- How can I find university notices?
-- Where can I find admission information?
-- What academic resources are available for students?
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Blank first session, wall time | 45.951 s | 0.337 s |
+| Blank first session, process CPU time | 81.820 s | 0.251 s |
+| Through first fee answer, including opening two sessions, wall time | 46.336 s | 60.975 s |
+| Through first fee answer, process CPU time | 82.204 s | 61.869 s |
+| Encodings for three identical dense queries across two sessions | 3 | 1 |
+| Peak process RSS | 739.9 MiB | 751.6 MiB |
 
-**Note:** Responses depend on the information available in the knowledge base. Example questions are not guarantees that every answer is currently supported.
+The one-thread build used less CPU and took longer to finish. Deferring it makes the blank page responsive but leaves a first-retrieval wait on a cold instance. These figures are from one local run. A fresh hosted instance may need a model download, and available CPU and memory depend on Community Cloud. [Community Cloud resource limits](https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app)
 
----
+Use deployment secrets or the environment for `GROQ_API_KEY` and keep any local `.streamlit/secrets.toml` private. The app shows an actionable error if the model download or index build fails. Use the deployment logs and resource indicators to check the hosted machine on its first run.
 
-## ⚙️ Installation and Setup
+**Troubleshooting a FAISS import error.** If the traceback points to `src/filter.py:3` and `from langchain_community.vectorstores import FAISS`, check the app's GitHub branch first. That line is from the legacy entrypoint on the old `main` revision. Its NumPy 2.5.1 pin requires Python 3.12 or later, so selecting Python 3.11 prevents the dependency set from installing even though `langchain-community` is listed. Deploy the branch containing the standalone app, with repository-root `app.py` and repository-root `requirements.txt`. There is no competing dependency file on this branch. Check the first package installation error before investigating downstream imports.
 
-### Prerequisites
+[Deploy on Community Cloud](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy) ? [Secrets management](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management) ? [Community Cloud resource limits](https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app)
 
-Make sure the following tools are installed:
+## Student support
 
-- Python 3.11
-- Git
-- pip
-- Groq API key
+The sidebar offers two example questions for each of the 15 student categories. Auto language mode detects English, Bangla, and common Banglish forms. English and Bangla can also be selected explicitly. Public navigation and account-access rules handle straightforward requests before search or model inference. For mixed public questions, retrieval gathers evidence for up to three clauses. The assistant sends no authorized-account requests and does not log in to UMS. The feedback store holds response IDs and votes.
 
-You can obtain a Groq API key from:
+- [Coverage and knowledge gaps](STUDENT_COVERAGE.md) lists verified public sources and missing procedures by category.
+- [Student questions](data/student_questions.jsonl) contains 225 generated prompts. There are five scenarios per category, written in three languages, with alternate phrasing, expected behavior, source IDs, and privacy labels.
+- [Evaluation dataset](data/evaluation_dataset.jsonl) groups translations and paraphrases together by semantic intent. Its 45 test prompts cover 15 held-out scenarios. The 45 development prompts cover distinct private-record scenarios. No model was fitted to these files.
+- [Verified student sources](data/verified_student_sources.jsonl) contains public-source summaries, 17 program fee rows, and a separate admission-charges record. Retrieval timestamps are recorded separately from publication dates. Multilingual search aliases improve keyword matching and are excluded from answer evidence.
 
-https://console.groq.com/keys
+Program fee queries retrieve structured rows by program from the loaded FAISS index. The formatter checks the official source, applicable admission session, and consistency of the published figures before displaying them. MBA (Regular) and MBA (One-Year) are separate rows. Program comparisons use a common session. The Fall 2025 prospectus explicitly labels the Pharmacy row Spring 2026. Current-rate requests disclose that current figures could not be verified. Admission charges are shown separately from the published approximate program cost. Fee retrieval uses both program and fee type. The Fall 2025 prospectus gives a general one-time admission charge and a separate undergraduate tuition-deposit rule. Joining queries list the verified components separately and leave the full amount payable unverified. Semester tuition requires the credit load.
 
-### Step 1: Clone the Repository
+## Knowledge-base updates
 
-```bash
-git clone https://github.com/arrahmanriju/Chatbot-SEU.git
-cd Chatbot-SEU
+The default build indexes the legacy archive and the verified student source file together. Run `python -m src.store --data data/your_sources.jsonl --index-dir vectorstore/faiss_index` offline. A record accepts `clean_text` or a relative `pdf_path`. It can include `id`, `title`, `source_url`, `category`, and `updated_at` as an ISO date. Use categories such as `notice` and `academic_calendar`. Document dates come from supplied metadata. Missing, invalid, future, and more than one-year-old dates are flagged as potentially outdated. Scanned PDFs require OCR before ingestion.
+
+The builder skips unchanged corpora and deduplicates exact chunk records. Changed corpora rebuild the index as an atomic replacement. Rebuild when changing the embedding model. Existing pickle-backed indexes require a rebuild. Serve the new artifact from a trusted volume and restart FastAPI after swapping the index. Administrative ingestion runs through the CLI.
+
+## API
+
+| Endpoint | Input and output |
+| --- | --- |
+| `POST /chat` | Accepts `question`, optional `history` containing up to five question/answer pairs, and `language` set to `auto`, `en`, or `bn`. Returns answer, route, citations, evidence count, timing, and request ID. |
+| `GET /health` | Returns process status and index-artifact presence. |
+| `GET /sources` | Returns titles, source URLs, categories, and freshness flags. |
+| `POST /feedback` | Accepts `request_id` and a boolean `helpful`. A subsequent vote for the same ID replaces the previous one. |
+
+Interactive OpenAPI docs are available at `/docs` on the backend.
+
+### Updating public knowledge
+
+The original 333-record website archive and the curated student sources are retained. The default FAISS build also reads `data/official_updates.jsonl`, an additive overlay generated from approved sources.
+
+```sh
+python -m scripts.update_knowledge_base --dry-run
+python -m scripts.update_knowledge_base --apply
 ```
 
-### Step 2: Create a Virtual Environment
+The default input is `scripts/approved_seu_sources.jsonl`. For a new batch, pass `--input path/to/approved.jsonl`. A reviewed record can supply its own stable ID or use the generated ID based on its official URL and scope. Provide `source_url`, `title`, and `clean_text`, plus any known `category`, `program`, `academic_session`, `effective_date`, `retrieved_at`, or `document_type`. Use an ISO date for `effective_date` and a timezone-qualified ISO timestamp for `retrieved_at`.
 
-**Windows:**
+To extract content from an approved public HTML, PDF, or plain-text URL, set `"fetch": true` on the manifest row and preview it with `--fetch --dry-run`. Review the extracted text and add its printed `expected_sha256` before running `--fetch --apply`. The collector checks robots rules, limits request frequency and size, and stops on access errors or redirects. Review public sources for personal records and omit student-specific documents. An update with failed records leaves the active index and overlay untouched.
 
-```powershell
-py -3.11 -m venv venv
+Exact duplicates are skipped. Edited overlay records keep a historical copy, and replacements of immutable records use a new ID with an explicit `supersedes` list. The updater stages and validates the merged index, saves a copy of the prior artifact under `vectorstore/kb-backups/`, and publishes to the configured FAISS location. It appends new vectors when the existing chunk prefix and embedding model match. A changed prefix requires a full rebuild. The running app checks the bundled corpus and published index revisions on the next retrieval request. An updated index replaces the cached instance once.
+
+The first overlay adds reviewed information on admission requirements, scholarships, UMS registration and advising, exams and grades, archived notices, career programs, departmental information, library borrowing, and certificate and convocation listings. Public sources verified the existence of several UMS functions. Exact current registration steps, incomplete-advising consequences, internship forwarding-letter instructions, and the graduation-document checklist remain unverified. An archived academic calendar is labeled with its original term. A follow-up batch adds the Central Library directory and service hours, a dated CSE library orientation notice, student ID access rules, and the Fall 2025 BBA concentrations. It preserves the original archive, original curated sources, and prior overlay records.
+
+## Student benchmark
+
+Run `python -m evaluation.student --baseline vectorstore/student-baseline` with the archive-only index preserved before upgrading. For a reconstructed baseline, build the default corpus in the previous checkout and point `--baseline` at its index directory. The comparison uses the same MiniLM embedding model and Recall@5/MRR@5 computed by matching official URLs. Retrieval metrics use the 36 held-out prompts with verified reference sources. Category accuracy uses all 45 held-out prompts and measures the top predicted category.
+
+| Language | Archive Recall@5 | Student Recall@5 | Archive MRR@5 | Student MRR@5 | Category accuracy |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| All | 5.6% | 97.2% | 0.056 | 0.682 | 84.4% |
+| English | 8.3% | 100% | 0.083 | 0.875 | 86.7% |
+| Bangla | 0.0% | 91.7% | 0.000 | 0.458 | 80.0% |
+| Banglish | 8.3% | 100% | 0.083 | 0.711 | 86.7% |
+
+Mean retrieval latency was 13.96 ms for the archive and 15.00 ms for the student index in this local WSL run. Each group contains translations of the same scenario, so the measurements are scenario-level coverage checks rather than independent estimates of production accuracy. The curated summaries and aliases cover the topics represented in the benchmark. They do not establish coverage of current policies across all categories.
+
+### Live diagnostic
+
+The live diagnostic used six prompts covering admissions contact and lost-certificate replacement in three languages. The archive comparator used the old index and disabled student-specific routing. Its generation configuration approximates the previous service. Manual review checked whether each answer matched the official reference or abstained appropriately. Groundedness measured whether complete factual answers stayed within the scope of the evidence. The unsupported-answer rate is the complement on that factual subset.
+
+| Run | Correct | Grounded factual answers | Unsupported factual answers | Mean service latency |
+| --- | ---: | ---: | ---: | ---: |
+| Archive comparator | 0/6 | 1/2 | 1/2 | 1,292.20 ms |
+| Student routes after targeted fixes | 6/6 | 3/3 | 0/3 | 0.53 ms |
+
+The six prompts informed the targeted admissions-contact and certificate-replacement rules. This is a regression diagnostic, not a blind answer-quality result. The student routes avoided Groq calls, so their latency is not representative of generated answers. The earlier model-only diagnostic also encountered a provider rate limit. Use `python -m evaluation.student --live-output vectorstore/student-live.json` to export a diagnostic run, review its `correct` and `grounded` fields, and use `python -m evaluation.student --score vectorstore/student-live.json` to aggregate it.
+
+## Original RAG evaluation
+
+Run `python -m evaluation.run` to compare the original dense retrieval configuration, hybrid retrieval, hybrid with reranking, and reranking plus rewriting. It reports source Recall@K, truncated MRR, and mean elapsed search time. The benchmark includes English, Bangla, Banglish, follow-up, out-of-scope, unanswerable, and greeting cases. Retrieval metrics use the five cases with labeled relevant sources.
+
+Run `python -m evaluation.answers export review.json` to capture generated answers and evidence. Mark each answer relevant if it addresses the actual query or appropriately abstains or routes it. Count independently checkable factual claims and count those supported by the retrieved excerpts. Run `python -m evaluation.answers score review.json` to aggregate binary relevance, supported-claim fraction, unsupported-claim fraction as the operational hallucination rate, and latency. Pass `--pause 8` to pace provider requests. Rerun the same export to resume after a rate limit.
+
+| Measured run | Queries | Recall@5 | MRR@5 | Mean search time |
+| --- | ---: | ---: | ---: | ---: |
+| BM25 on archived documents | 5 | 0.20 | 0.10 | 0.60 ms |
+| Original dense MiniLM | 5 | 0.20 | 0.067 | 11.71 ms |
+| Hybrid MiniLM and BM25 with title matching | 5 | 0.60 | 0.40 | 29.27 ms |
+| Hybrid multilingual MiniLM and BM25 | 5 | 0.60 | 0.50 | 41.80 ms |
+| Multilingual hybrid with reranking | 5 | 0.40 | 0.25 | 974.12 ms |
+| Multilingual hybrid with reranking and rewriting | 5 | 0.40 | 0.25 | 812.67 ms |
+
+### Live answer review
+
+Each run used the same eight benchmark questions and GPT-OSS 20B. The original baseline uses its original retrieval and prompt configuration with the available Groq model. One reviewer marked relevance and counted factual claims supported by the retrieved excerpts.
+
+| Answer variant | Relevant answers | Supported claims | Unsupported claims | Mean latency |
+| --- | ---: | ---: | ---: | ---: |
+| Original dense MiniLM | 2/8 | 0/1 | 100% | 416 ms |
+| Archive-document BM25 | 3/8 | 12/17 | 29.4% | 788 ms |
+| Hybrid MiniLM | 5/8 | 7/9 | 22.2% | 732 ms |
+| Multilingual hybrid with reranking | 3/8 | 0/1 | 100% | 1,477 ms |
+| Multilingual hybrid with reranking and rewriting | 5/8 | 2/3 | 33.3% | 1,242 ms |
+
+The denominators show how often a variant made a factual claim. A variant that abstains frequently can have a fragile unsupported-claim rate. The runs exposed missing admissions qualifiers and citations to statements about the wrong organizational unit. The prompt now emphasizes evidence qualifiers and scope, and the service rechecks unrelated queries when evidence is inconclusive. The answer runs preceded that final prompt and routing adjustment.
+
+The BM25-only run ranks full documents on Windows. The FAISS variants rank chunks and ran in CPU-only Ubuntu under WSL because Windows Application Control blocked native FAISS imports. With five labeled queries, these results show observed behavior on the supplied archive and give limited evidence of performance on production traffic. The multilingual comparison used `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` with `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`. The reranking stage reduced retrieval quality in this sample, so it remains optional. The first reranking run includes loading the model into memory. The rewrite variant reused that model, so its lower mean latency does not imply that rewriting made reranking faster.
+
+## Docker deployment
+
+```sh
+# Copy .env.example to .env and set the backend configuration first.
+docker compose build
+docker compose run --rm api python -m src.store
+docker compose up
 ```
 
-Activate it:
+The API port binds to loopback and Streamlit communicates with it over the Compose network. The vector store and feedback database use a bind mount. The Hugging Face model cache uses a named volume. For a public deployment, use TLS, rate limits, and access controls at the ingress before exposing the chat and feedback endpoints.
 
-```powershell
-.\venv\Scripts\Activate.ps1
-```
+## Limitations
 
-**Linux / macOS:**
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### Step 3: Install Dependencies
-
-```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### Step 4: Configure Environment Variables
-
-Create a `.env` file in the project root:
-
-```env
-GROQ_API_KEY=your_groq_api_key_here
-```
-
-Replace the placeholder with your actual Groq API key.
-
-**Security:** Never upload API keys or your `.env` file to GitHub.
-
-### Step 5: Build the FAISS Vector Database
-
-```bash
-python -m src.store
-```
-
-The command loads the knowledge base, generates embeddings, and stores the FAISS index locally.
-
-### Step 6: Run the Chatbot
-
-```bash
-python -m streamlit run app.py
-```
-
-Open your browser and visit:
-
-```text
-http://localhost:8501
-```
-
-The chatbot should now be accessible locally.
-
----
-
-## 🐳 Docker Setup
-
-The project includes a Dockerfile for containerized deployment.
-
-### Build the Docker Image
-
-```bash
-docker build -t chatbot-seu .
-```
-
-### Run the Container
-
-```bash
-docker run --env-file .env -p 8501:8501 chatbot-seu
-```
-
-Visit:
-
-```text
-http://localhost:8501
-```
-
-**Important:** The FAISS index must be available inside the container, either by including it during the build, mounting it, or generating it at startup. Check the Dockerfile and `.dockerignore` before deployment.
-
----
-
-## 🚀 Deployment
-
-The Streamlit application can be deployed using a hosting service that supports Python applications.
-
-### Option 1: Streamlit Community Cloud
-
-1. Push the repository to GitHub.
-2. Visit https://share.streamlit.io/.
-3. Connect your GitHub account.
-4. Select the `Chatbot-SEU` repository.
-5. Select the `main` branch.
-6. Set the entry point to `app.py`.
-7. Configure Python dependencies and secrets.
-8. Add `GROQ_API_KEY` in the app's secrets.
-9. Ensure the FAISS index can be built or loaded.
-10. Deploy and test the application.
-
-### Option 2: Docker-Based Hosting
-
-The Dockerfile can be adapted for services such as Render or Railway.
-
-Deployment requires:
-
-- Installing Python dependencies
-- Making the FAISS index available
-- Configuring the Groq API key
-- Exposing the Streamlit application port
-- Providing sufficient memory for the embedding model
-
----
-
-## 🧪 Testing and Evaluation
-
-The original project supports manual testing through the chatbot interface and Python modules.
-
-Example:
-
-```bash
-python -m src.chain
-```
-
-### Suggested Evaluation Metrics
-
-| Metric | Purpose |
-|---|---|
-| Retrieval Recall@K | Measures relevant document retrieval |
-| Mean Reciprocal Rank | Evaluates ranking quality |
-| Answer Correctness | Measures factual accuracy |
-| Faithfulness | Measures consistency with retrieved context |
-| Response Latency | Measures response time |
-| Out-of-Scope Detection | Evaluates query filtering |
-| Answerability | Evaluates handling of missing information |
-
-Automated benchmark results have not yet been published.
-
----
-
-## ⚠️ Known Limitations
-
-1. Some information in the original university dataset may be outdated.
-2. The English-focused embedding model may perform poorly on Bangla or Banglish queries.
-3. Semantic similarity filtering may incorrectly reject valid university questions.
-4. Retrieval quality depends on the coverage and accuracy of indexed information.
-5. Similar financial terms, such as admission fees and tuition fees, may require more precise intent handling.
-6. The chatbot does not have authorized access to private student records.
-7. LLM-generated responses may require additional validation.
-8. The original implementation does not include a comprehensive automated evaluation suite.
-
----
-
-## 🔮 Future Improvements
-
-The project can be extended with the following features:
-
-- [ ] Expand the knowledge base using updated official university information.
-- [ ] Add source citations for generated answers.
-- [ ] Improve Bangla, English, and Banglish support.
-- [ ] Implement hybrid retrieval using BM25 and FAISS.
-- [ ] Add document reranking.
-- [ ] Improve academic program and fee-intent detection.
-- [ ] Introduce conversation-aware query rewriting.
-- [ ] Add PDF and university notice ingestion.
-- [ ] Implement automated knowledge-base updates.
-- [ ] Create a benchmark dataset for RAG evaluation.
-- [ ] Introduce user feedback collection.
-- [ ] Add FastAPI for external application integration.
-- [ ] Optimize performance and deployment.
-- [ ] Publish a live chatbot demonstration.
-
----
-
-## 💡 Why RAG Instead of Fine-Tuning?
-
-Retrieval-Augmented Generation was chosen because university information changes frequently.
-
-Traditional fine-tuning would require additional training whenever important information changes.
-
-With RAG:
-
-1. New university information can be added to the knowledge base.
-2. Documents are converted into embeddings.
-3. The FAISS vector index is updated.
-4. The chatbot retrieves the newly indexed information.
-5. The LLM generates responses using the retrieved context.
-
-This approach makes the system easier to maintain and expand without retraining the language model.
-
----
-
-## 🤝 Contributing
-
-Contributions, suggestions, and improvements are welcome.
-
-To contribute:
-
-1. Fork this repository.
-2. Create a feature branch.
-3. Make your changes.
-4. Test your changes.
-5. Submit a pull request.
-
-For bugs or feature requests, open an issue:
-
-[GitHub Issues](https://github.com/arrahmanriju/Chatbot-SEU/issues)
-
----
-
-## 👨‍💻 Developer
-
-**Azizur Rahman**
-
-Computer Science and Engineering  
-Southeast University, Dhaka, Bangladesh
-
-Interested in Artificial Intelligence, Machine Learning, Natural Language Processing, Generative AI, and Retrieval-Augmented Generation.
-
-**Connect with me:**
-
-- **GitHub:** https://github.com/arrahmanriju
-- **Codeforces:** https://codeforces.com/profile/riju_rahman
-
----
-
-## 📜 Disclaimer
-
-This project is developed for educational and research purposes.
-
-Chatbot-SEU is an independent student project and is not an official Southeast University support service.
-
-The chatbot uses publicly available university information. Users should verify important information, including admission fees, tuition rates, academic deadlines, and university policies, through official Southeast University sources.
-
-**Official University Website:** https://seu.edu.bd/
-
----
-
-### ⭐ Support the Project
-
-If you find this project useful, consider giving the repository a star!
-
-**Built with Python, LangChain, FAISS, Streamlit, and Llama via Groq.**
+The existing LangChain community FAISS integration is deprecated in the installed release. Migrating the integration is a maintenance follow-up. The archive has limited date metadata and cannot establish current policies, fees, or deadlines. Banglish transliteration can differ from archive wording. MiniLM remains the lower-resource default. The tested multilingual model improved mean reciprocal rank on this sample. BGE-M3 is supported through model configuration and was not included in the measured run. Citation-ID validation and an evidence-only prompt reduce risk, while independent claim verification and adversarial evaluation remain future work.

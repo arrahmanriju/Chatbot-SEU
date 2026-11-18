@@ -1,0 +1,16 @@
+.env
+.env.*
+.git
+.worktrees
+myenvironment
+.venv
+__pycache__
+vectorstore
+.verify-deps
+.verify-linux
+.streamlit/secrets.toml
+.cache
+models--*
+*.safetensors
+pytorch_model*.bin
+.hf-cache

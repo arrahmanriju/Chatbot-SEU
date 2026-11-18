@@ -1,0 +1,17 @@
+{
+  "Admission and Enrollment": "admission|enroll|ভর্তি|vorti|admissions|application|applicant|enrollment|ভর্তির|আবেদনকারী|vorti application",
+  "Course Registration and Advising": "registration|advising|course drop|নিবন্ধন|কোর্স রেজিস্ট্রেশন|reg korte|register|registered|prerequisite|section change|add drop|course advising|রেজিস্ট্রেশন|নিবন্ধন|অ্যাডভাইজিং|কোর্স বাদ|registration er",
+  "Tuition Fees and Payment": "tuition|fee|payment|ledger|ফি|টাকা|koto taka|fees|pay|receipt|online payment|student ledger|outstanding balance|পেমেন্ট|রসিদ|লেজার|টিউশন ফি|payment er",
+  "Scholarships and Tuition Waivers": "scholarship|waiver|বৃত্তি|ওয়েভার|britti|tuition waiver|merit award|scholarships|waivers|মেধাবৃত্তি|ওয়েভারের|tuition fee waiver",
+  "Academic Calendar and Class Schedule": "calendar|schedule|class routine|ক্যালেন্ডার|রুটিন|routine|class timetable|term dates|semester start|classroom|সময়সূচি|ক্লাস রুটিন|সেমিস্টার শুরু|ক্যালেন্ডারের",
+  "Examinations and Grading": "exam|grading|grade|cgpa|পরীক্ষা|গ্রেড|result|examination|exams|exam mark|grade point|makeup exam|unfair means|সিজিপিএ|অসদুপায়|নম্বর|পরীক্ষায়",
+  "Attendance and Academic Policies": "attendance|academic policy|conduct|উপস্থিতি|আচরণবিধি|uposthiti|absent|absence|class attendance|student code|academic leave|নীতিমালা|ক্লাস উপস্থিতি|অনুপস্থিতি|আচরণবিধি",
+  "Departments and Faculty": "department|faculty|chair|বিভাগ|শিক্ষক|dept|faculty directory|lecturer|schools|academic department|শিক্ষকরা|বিভাগের|বিভাগগুলোর|স্কুল",
+  "UMS Portal and Technical Support": "ums|portal|password|login|পোর্টাল|পাসওয়ার্ড|ইউএমএস|sign in|forgot password|verification code|wifi|software status|technical support|লগইন|ওয়াইফাই|সফটওয়্যার|ইউএমএসে",
+  "Library and Campus Facilities": "library|lab|facility|লাইব্রেরি|গ্রন্থাগার|boi|catalog|borrowing|borrow|reading room|central library|ক্যাটালগ|কেন্দ্রীয় গ্রন্থাগার|ধার|library er",
+  "Internship and Career Support": "internship|career|placement|ইন্টার্নশিপ|ক্যারিয়ার|chakri|cpds|internships|career fair|cv review|job placement|চাকরি|সিপিডিএস|কর্মজীবন|সিভি",
+  "Thesis, Projects and Research": "thesis|research|capstone|project|থিসিস|গবেষণা|gobeshona|supervisor|research methodology|research methodologies|ethics clearance|গবেষণা পদ্ধতি|গবেষণা প্রকল্প|থিসিস প্রস্তাব",
+  "Certificates and Graduation": "certificate|graduation|convocation|transcript|সনদ|সমাবর্তন|shonod|certificates|degree verification|provisional certificate|graduation documents|ট্রান্সক্রিপ্ট|সাময়িক সনদ|সমাবর্তনের|shonod",
+  "Student Life and Activities": "club|orientation|activities|ক্লাব|নবীনবরণ|sports|clubs|freshers reception|volunteer|student activity|ক্রীড়া|স্বেচ্ছাসেবী|ক্লাবের|campus event",
+  "Complaints and Special Situations": "complaint|grievance|harassment|অভিযোগ|হয়রানি|obhijog|discrimination|misconduct|accessibility|lost id|grievance redress|বৈষম্য|বৈষম্যের|অসদাচরণ|পরিচয়পত্র"
+}
