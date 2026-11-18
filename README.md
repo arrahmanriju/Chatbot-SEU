@@ -66,6 +66,8 @@ Local verification used Linux and Python 3.11.18 with the production requirement
 
 Use deployment secrets or the environment for `GROQ_API_KEY` and keep any local `.streamlit/secrets.toml` private. The app shows an actionable error if the model download or index build fails. Use the deployment logs and resource indicators to check the hosted machine on its first run.
 
+**Troubleshooting a FAISS import error.** If the traceback points to `src/filter.py:3` and `from langchain_community.vectorstores import FAISS`, check the app's GitHub branch first. That line is from the legacy entrypoint on the old `main` revision. Its NumPy 2.5.1 pin requires Python 3.12 or later, so selecting Python 3.11 prevents the dependency set from installing even though `langchain-community` is listed. Deploy the branch containing the standalone app, with repository-root `app.py` and repository-root `requirements.txt`. There is no competing dependency file on this branch. Check the first package installation error before investigating downstream imports.
+
 [Deploy on Community Cloud](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy) ? [Secrets management](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management) ? [Community Cloud resource limits](https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app)
 
 ## Student support

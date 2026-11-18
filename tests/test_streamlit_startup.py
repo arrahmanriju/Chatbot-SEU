@@ -68,3 +68,14 @@ class StreamlitStartupTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertFalse(app.error)
         load.assert_not_called()
+
+    def test_missing_dependency_points_to_cloud_requirements(self):
+        with TemporaryDirectory() as temp:
+            env = {"SEU_INDEX_DIR": temp, "SEU_API_URL": "", "GROQ_API_KEY": "test-key"}
+            missing = ModuleNotFoundError(name="langchain_community")
+            with (patch.dict(os.environ, env),
+                  patch("src.runtime.load_or_build_index", side_effect=missing)):
+                app = AppTest.from_file(str(APP)).run()
+            self.assertFalse(app.exception)
+            self.assertIn("root requirements.txt", app.error[0].value)
+            self.assertIn("Python 3.11", app.error[0].value)

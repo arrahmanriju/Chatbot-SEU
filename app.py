@@ -69,6 +69,12 @@ if not API:
     try:
         with st.spinner("Preparing the university knowledge base?" if building else "Loading the knowledge base?"):
             service = standalone_service(directory)
+    except ModuleNotFoundError as exc:
+        logger.error("Knowledge-base dependency missing: %s", exc.name)
+        st.error("A required knowledge-base dependency is missing. On Streamlit Community Cloud, "
+                 "deploy repository-root app.py using Python 3.11 and the root requirements.txt "
+                 "from the deployment branch. Check the dependency installation log.")
+        st.stop()
     except Exception as exc:
         logger.error("Knowledge-base startup failed (%s)", type(exc).__name__)
         st.error("The university knowledge base could not be built or loaded. Check the deployment logs, "
