@@ -1,9 +1,12 @@
 """Fuse dense and BM25 rankings over the same indexed chunks."""
+import logging
 import re
 import unicodedata
 from dataclasses import dataclass
 from functools import cached_property
+from time import perf_counter
 
+logger = logging.getLogger(__name__)
 TOKEN = re.compile(r"[\w\u0980-\u09ff]+", flags=re.UNICODE)
 
 
@@ -77,13 +80,19 @@ class HybridRetriever:
                 documents.setdefault(schedule["program"], []).append(doc)
         return documents
 
-    def search_support(self, topic):
+    @cached_property
+    def support_documents(self):
+        result = {}
         for key in self.store.index_to_docstore_id.values():
             document = self.store.docstore.search(key)
             metadata = document.metadata
-            if metadata.get("support_topic") == topic and not metadata.get("superseded_by"):
-                return document
-        return None
+            topic = metadata.get("support_topic")
+            if topic and not metadata.get("superseded_by"):
+                result.setdefault(topic, document)
+        return result
+
+    def search_support(self, topic):
+        return self.support_documents.get(topic)
 
     def search_program_fees(self, programs, fee_type=None):
         return [
@@ -95,6 +104,7 @@ class HybridRetriever:
         ]
 
     def search(self, question: str, limit: int = 5):
+        started = perf_counter()
         dense = self.store.similarity_search_with_relevance_scores(question, k=self.candidates)
         dense = [(doc, score) for doc, score in dense if score >= self.min_dense_score]
         documents, bm25, titles = self.sparse
@@ -134,4 +144,5 @@ class HybridRetriever:
                 result.append(match)
                 if len(result) == limit:
                     break
+        logger.info("hybrid_retrieval count=%d elapsed_ms=%.1f", len(result), (perf_counter()-started)*1000)
         return result

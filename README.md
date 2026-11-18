@@ -60,9 +60,26 @@ In a second shell with the same environment, set `SEU_API_URL=http://localhost:8
 
 4. Deploy and watch the first session's startup logs. Leave `SEU_API_URL` unset so Streamlit runs the existing LangChain, FAISS, and Groq service in-process. Set it only for a separately hosted FastAPI backend.
 
-The checked-in JSONL archive, verified student sources, and official overlay are included in the default corpus. On first access the app builds a missing `vectorstore/faiss_index/index.zip` from those files, loads the existing MiniLM embedding model, and caches the shared retriever and service across sessions with `st.cache_resource`. A restart can reuse an existing local index. Community Cloud instances can be replaced, so the local index and SQLite feedback file are ephemeral. A fresh instance may need to download MiniLM and build once. The requirements use the official Linux CPU PyTorch wheel. The optional cross-encoder is disabled by default and adds a separate model download when enabled.
+The checked-in JSONL archive, verified student sources, and official overlay are included in the default corpus. On the first request that needs indexed evidence, the app builds a missing `vectorstore/faiss_index/index.zip` from those files, loads the existing MiniLM embedding model, and caches the shared retriever and service across sessions with `st.cache_resource`. A restart can reuse an existing local index. Community Cloud instances can be replaced, so the local index and SQLite feedback file are ephemeral. A fresh instance may need to download MiniLM and build once. Opening the page and chatting without retrieval leave the index unopened. A saved index can serve structured fees and curated guidance without loading MiniLM. The requirements use the official Linux CPU PyTorch wheel. The optional cross-encoder is disabled by default and adds a separate model download when enabled.
 
-Local verification used Linux and Python 3.11.18 with the production requirements. An empty model cache required a model download. With the model cached and no FAISS directory, the final batch size of eight built 1,632 vectors in 48 seconds and peaked at about 743 MiB RSS through two chat queries. Reruns reused the cached service, and an existing-index reload within the same process took 0.24 seconds. Cloud cold-start time and available memory vary. Watch the first hosted startup, particularly if the instance receives memory near the low end of the published resource range.
+### CPU and cache behavior
+
+`st.cache_resource` shares a lazy retrieval service across Streamlit sessions. Corpus and artifact revision checks trigger refresh on the next relevant request. The FAISS manifest includes a bundled-corpus fingerprint so updated JSONL data can be detected even when the index persists across restarts. A matching artifact is loaded, and a compatible append uses the existing incremental builder. Custom indexes with a separate corpus are refreshed when their artifact is replaced.
+
+The process shares one MiniLM instance by default. The retriever caches at most 128 exact query vectors in memory, keyed by a digest. New indexes start with an empty query cache. Set `SEU_CPU_THREADS` before startup to change the default of one PyTorch/OpenMP/BLAS thread. The app logs model load, document and query encoding, FAISS load/write, hybrid retrieval, and Groq duration. The logs omit prompt and student record text. Groq handles generation remotely.
+
+One before/after run used Linux WSL, Python 3.11.18, the cached MiniLM files, a missing FAISS directory, and two Streamlit AppTest sessions. Groq was mocked during timing so provider latency would not affect results.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Blank first session, wall time | 45.951 s | 0.337 s |
+| Blank first session, process CPU time | 81.820 s | 0.251 s |
+| Through first fee answer, including opening two sessions, wall time | 46.336 s | 60.975 s |
+| Through first fee answer, process CPU time | 82.204 s | 61.869 s |
+| Encodings for three identical dense queries across two sessions | 3 | 1 |
+| Peak process RSS | 739.9 MiB | 751.6 MiB |
+
+The one-thread build used less CPU and took longer to finish. Deferring it makes the blank page responsive but leaves a first-retrieval wait on a cold instance. These figures are from one local run. A fresh hosted instance may need a model download, and available CPU and memory depend on Community Cloud. [Community Cloud resource limits](https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app)
 
 Use deployment secrets or the environment for `GROQ_API_KEY` and keep any local `.streamlit/secrets.toml` private. The app shows an actionable error if the model download or index build fails. Use the deployment logs and resource indicators to check the hosted machine on its first run.
 
@@ -111,7 +128,7 @@ The default input is `scripts/approved_seu_sources.jsonl`. For a new batch, pass
 
 To extract content from an approved public HTML, PDF, or plain-text URL, set `"fetch": true` on the manifest row and preview it with `--fetch --dry-run`. Review the extracted text and add its printed `expected_sha256` before running `--fetch --apply`. The collector checks robots rules, limits request frequency and size, and stops on access errors or redirects. Review public sources for personal records and omit student-specific documents. An update with failed records leaves the active index and overlay untouched.
 
-Exact duplicates are skipped. Edited overlay records keep a historical copy, and replacements of immutable records use a new ID with an explicit `supersedes` list. The updater stages and validates the merged index, saves a copy of the prior artifact under `vectorstore/kb-backups/`, and publishes to the configured FAISS location. It appends new vectors when the existing chunk prefix and embedding model match. A changed prefix requires a full rebuild. Restart FastAPI after applying changes so its cached retriever reopens the index.
+Exact duplicates are skipped. Edited overlay records keep a historical copy, and replacements of immutable records use a new ID with an explicit `supersedes` list. The updater stages and validates the merged index, saves a copy of the prior artifact under `vectorstore/kb-backups/`, and publishes to the configured FAISS location. It appends new vectors when the existing chunk prefix and embedding model match. A changed prefix requires a full rebuild. The running app checks the bundled corpus and published index revisions on the next retrieval request. An updated index replaces the cached instance once.
 
 The first overlay adds reviewed information on admission requirements, scholarships, UMS registration and advising, exams and grades, archived notices, career programs, departmental information, library borrowing, and certificate and convocation listings. Public sources verified the existence of several UMS functions. Exact current registration steps, incomplete-advising consequences, internship forwarding-letter instructions, and the graduation-document checklist remain unverified. An archived academic calendar is labeled with its original term. A follow-up batch adds the Central Library directory and service hours, a dated CSE library orientation notice, student ID access rules, and the Fall 2025 BBA concentrations. It preserves the original archive, original curated sources, and prior overlay records.
 

@@ -39,15 +39,21 @@ class StreamlitStartupTests(unittest.TestCase):
         st.cache_resource.clear()
         self.addCleanup(st.cache_resource.clear)
 
-    def test_streamlit_caches_service_and_reads_secret(self):
+    def test_streamlit_shares_lazy_index_and_reads_secret(self):
         with TemporaryDirectory() as temp:
             env = {"SEU_INDEX_DIR": str(Path(temp) / "missing"), "SEU_API_URL": "", "GROQ_API_KEY": ""}
+            retriever = Mock()
+            retriever.search_program_fees.return_value = []
             with (patch.dict(os.environ, env), patch.object(type(st.secrets), "get", return_value="test-key"),
+                  patch("src.runtime.create_retriever", return_value=retriever),
                   patch("src.runtime.load_or_build_index", return_value=Mock()) as load):
-                app = AppTest.from_file(str(APP)).run()
-                self.assertFalse(app.exception)
-                app.run()
-                self.assertFalse(app.exception)
+                first = AppTest.from_file(str(APP)).run()
+                second = AppTest.from_file(str(APP)).run()
+                load.assert_not_called()
+                for session in (first, second, first):
+                    session.chat_input[0].set_value("What is the tuition fee of BBA?").run()
+                    self.assertFalse(session.error)
+                    self.assertFalse(session.exception)
                 self.assertEqual(os.environ["GROQ_API_KEY"], "test-key")
                 load.assert_called_once()
 
@@ -57,6 +63,7 @@ class StreamlitStartupTests(unittest.TestCase):
             with (patch.dict(os.environ, env),
                   patch("src.runtime.load_or_build_index", side_effect=OSError("private value"))):
                 app = AppTest.from_file(str(APP)).run()
+                app.chat_input[0].set_value("What is the tuition fee of BBA?").run()
             self.assertFalse(app.exception)
             self.assertIn("knowledge base could not be built or loaded", app.error[0].value)
             self.assertNotIn("private value", app.error[0].value)
@@ -76,6 +83,7 @@ class StreamlitStartupTests(unittest.TestCase):
             with (patch.dict(os.environ, env),
                   patch("src.runtime.load_or_build_index", side_effect=missing)):
                 app = AppTest.from_file(str(APP)).run()
+                app.chat_input[0].set_value("What is the tuition fee of BBA?").run()
             self.assertFalse(app.exception)
             self.assertIn("root requirements.txt", app.error[0].value)
             self.assertIn("Python 3.11", app.error[0].value)

@@ -5,6 +5,7 @@ import sqlite3
 from dataclasses import asdict
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from typing import Literal
 from uuid import UUID, uuid4
 from zipfile import BadZipFile
@@ -15,13 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 from src.freshness import potentially_outdated
-from src.runtime import create_retriever, create_service, save_feedback
+from src.runtime import IndexedRetriever, create_service, save_feedback
 from src.service import source_url
-from src.store import INDEX_FILE, index_directory, load_index
+from src.store import INDEX_FILE, index_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 logger = logging.getLogger(__name__)
+_index_lock = Lock()
 app = FastAPI(title="Chatbot-SEU")
 origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
 if origins:
@@ -73,8 +75,14 @@ class FeedbackRequest(BaseModel):
 
 
 @lru_cache(maxsize=1)
+def get_index_resource():
+    return IndexedRetriever(index_directory())
+
+
 def get_retriever():
-    return create_retriever(load_index(index_directory()))
+    with _index_lock:
+        resource = get_index_resource()
+    return resource.get()
 
 
 class LazyRetriever:

@@ -11,12 +11,14 @@ import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from src.config import load_environment
-from src.runtime import create_retriever, create_service, load_or_build_index, save_feedback
-from src.store import INDEX_FILE, index_directory
+from src.runtime import IndexedRetriever, IndexUnavailable, create_service, save_feedback
+from src.store import file_revision, index_directory
 from src.student import CATEGORIES, DATA, private_request, safe_question
 
 load_environment()
 API = (os.getenv("SEU_API_URL") or "").strip().rstrip("/")
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("src").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 st.set_page_config(page_title="Southeast University Assistant", page_icon="🎓")
 st.title("Southeast University Assistant")
@@ -28,11 +30,16 @@ st.caption("সাউথইস্ট ইউনিভার্সিটি, ব�
 st.sidebar.caption("পাসওয়ার্ড বা যাচাই কোড শেয়ার করবেন না।" if bn else "Keep passwords and verification codes private.")
 category = st.sidebar.selectbox("প্রশ্নের বিষয়" if bn else "Question category", list(CATEGORIES))
 example = None
-with (DATA / "student_questions.jsonl").open(encoding="utf-8") as questions:
-    options = [row["question"] for line in questions if line.strip()
-               for row in [json.loads(line)]
-               if row["category"] == category and row["language"] == ("bn" if bn else "en")
-               and not row["requires_personal_student_data"]][:2]
+@st.cache_data(show_spinner=False, max_entries=1)
+def example_questions(path: Path, revision):
+    with path.open(encoding="utf-8") as questions:
+        return [json.loads(line) for line in questions if line.strip()]
+
+
+examples_path = DATA / "student_questions.jsonl"
+options = [row["question"] for row in example_questions(examples_path, file_revision(examples_path))
+           if row["category"] == category and row["language"] == ("bn" if bn else "en")
+           and not row["requires_personal_student_data"]][:2]
 for option in options:
     if st.sidebar.button(option):
         example = option
@@ -46,7 +53,7 @@ if st.sidebar.button("নতুন কথোপকথন" if bn else "New conver
 
 @st.cache_resource(show_spinner=False, max_entries=1)
 def standalone_service(directory: Path):
-    return create_service(create_retriever(load_or_build_index(directory)))
+    return create_service(IndexedRetriever(directory))
 
 
 service = None
@@ -61,25 +68,8 @@ if not API:
     if not os.getenv("GROQ_API_KEY", "").strip():
         st.warning("Set GROQ_API_KEY in Streamlit secrets or the environment to enable generated answers.")
 
-    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    os.environ.setdefault("OMP_NUM_THREADS", "2")
-    os.environ.setdefault("MKL_NUM_THREADS", "2")
-    directory = index_directory()
-    building = not (directory / INDEX_FILE).is_file()
-    try:
-        with st.spinner("Preparing the university knowledge base?" if building else "Loading the knowledge base?"):
-            service = standalone_service(directory)
-    except ModuleNotFoundError as exc:
-        logger.error("Knowledge-base dependency missing: %s", exc.name)
-        st.error("A required knowledge-base dependency is missing. On Streamlit Community Cloud, "
-                 "deploy repository-root app.py using Python 3.11 and the root requirements.txt "
-                 "from the deployment branch. Check the dependency installation log.")
-        st.stop()
-    except Exception as exc:
-        logger.error("Knowledge-base startup failed (%s)", type(exc).__name__)
-        st.error("The university knowledge base could not be built or loaded. Check the deployment logs, "
-                 "available memory, model download access, and the bundled JSONL files.")
-        st.stop()
+    # The resource opens the index on the first retrieval request.
+    service = standalone_service(index_directory())
 
 
 def send(path, payload):
@@ -150,6 +140,14 @@ if question and question.strip():
                                       "language": {"Auto": "auto", "English": "en", "বাংলা": "bn"}[language]})
             st.session_state.turns.append({"question": history_question, "reply": reply})
             render_answer(reply)
+        except ModuleNotFoundError as exc:
+            logger.error("Knowledge-base dependency missing: %s", exc.name)
+            st.error("A required dependency is missing. Deploy repository-root app.py using Python 3.11 "
+                     "and the root requirements.txt. Check the dependency installation log.")
+        except IndexUnavailable as exc:
+            logger.error("Knowledge-base startup failed (%s)", type(exc.__cause__).__name__)
+            st.error("The university knowledge base could not be built or loaded. Check the deployment logs, "
+                     "available memory, model download access, and the bundled JSONL files.")
         except Exception as exc:
             logger.error("Chat request failed (%s)", type(exc).__name__)
             st.error("সহকারী এখন উত্তর দিতে পারছে না। আবার চেষ্টা করুন।" if bn else

@@ -1,7 +1,11 @@
 """Configuration and connection reuse for the Groq provider."""
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
+from time import perf_counter
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -30,6 +34,7 @@ def ask_llm_json(prompt: str) -> str:
 
 def complete(messages, model=None, **options) -> str:
     client = _get_client()
+    started = perf_counter()
     response = client.chat.completions.create(
         model=model or os.getenv("GROQ_MODEL") or "openai/gpt-oss-20b",
         messages=messages,
@@ -37,6 +42,7 @@ def complete(messages, model=None, **options) -> str:
         max_completion_tokens=900,
         **options,
     )
+    logger.info("groq_generation elapsed_ms=%.1f", (perf_counter()-started)*1000)
     content = response.choices[0].message.content if response.choices else None
     if not content or not content.strip():
         raise RuntimeError("Groq returned an empty answer.")

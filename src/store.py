@@ -1,21 +1,44 @@
 """Build and load the offline FAISS index with JSON document metadata."""
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from time import perf_counter
 from zipfile import BadZipFile, ZipFile
 
 from src.config import embedding_model, load_environment
-from src.embedder import get_embedding_model
+from src.embedder import configure_cpu, deferred_embeddings, get_embedding_model
+from src.loader import DEFAULT_DATA_PATH, OFFICIAL_UPDATES_PATH, VERIFIED_STUDENT_PATH
 
 DEFAULT_PERSIST_DIR = Path(__file__).resolve().parents[1] / "vectorstore" / "faiss_index"
 INDEX_FILE = "index.zip"
+logger = logging.getLogger(__name__)
 
 
 def index_directory():
     load_environment()
     return Path(os.getenv("SEU_INDEX_DIR") or DEFAULT_PERSIST_DIR)
+
+
+def corpus_paths(overlay=OFFICIAL_UPDATES_PATH):
+    return DEFAULT_DATA_PATH, VERIFIED_STUDENT_PATH, Path(overlay)
+
+
+def file_revision(path):
+    try:
+        info = path.stat()
+    except FileNotFoundError:
+        return None
+    return info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def corpus_fingerprint(paths=None):
+    result = hashlib.sha256()
+    for path in corpus_paths() if paths is None else paths:
+        result.update(hashlib.sha256(path.read_bytes()).digest() if path.exists() else b"missing")
+    return result.hexdigest()
 
 
 def cosine_relevance(squared_distance: float) -> float:
@@ -25,18 +48,22 @@ def cosine_relevance(squared_distance: float) -> float:
 
 def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=None, *,
                       updates_path=None, append_from=None):
+    configure_cpu()
+    started = perf_counter()
     import faiss
     from langchain_community.vectorstores import FAISS
 
-    from src.loader import DEFAULT_DATA_PATH, OFFICIAL_UPDATES_PATH, VERIFIED_STUDENT_PATH, load_university_data
+    from src.loader import load_university_data
     from src.splitter import split_documents
 
     target = Path(persist_dir)
     model = embedding_model()
+    overlay = Path(updates_path) if updates_path is not None else OFFICIAL_UPDATES_PATH
+    bundled = data_path is None or Path(data_path).resolve() == DEFAULT_DATA_PATH.resolve()
+    corpus_hash = corpus_fingerprint(corpus_paths(overlay)) if bundled else None
     documents = load_university_data(data_path or DEFAULT_DATA_PATH)
-    if data_path is None or Path(data_path).resolve() == DEFAULT_DATA_PATH.resolve():
+    if bundled:
         documents.extend(load_university_data(VERIFIED_STUDENT_PATH))
-        overlay = Path(updates_path) if updates_path is not None else OFFICIAL_UPDATES_PATH
         if overlay.exists():
             documents.extend(load_university_data(overlay))
     superseded = {old: str(doc.metadata["id"]) for doc in documents
@@ -50,6 +77,8 @@ def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=N
     for chunk in split_documents(documents):
         record = {"content": chunk.page_content, "metadata": chunk.metadata}
         records.setdefault(json.dumps(record, sort_keys=True, ensure_ascii=False), chunk)
+    if bundled and corpus_fingerprint(corpus_paths(overlay)) != corpus_hash:
+        raise RuntimeError("Knowledge base changed during indexing. Retry with the updated corpus.")
     chunks = list(records.values())
     fingerprint = hashlib.sha256("\n".join(records).encode()).hexdigest()
     try:
@@ -74,7 +103,7 @@ def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=N
         vectorstore.add_documents(chunks[len(old_docs):])
     else:
         vectorstore = FAISS.from_documents(
-            chunks, get_embedding_model(model), relevance_score_fn=cosine_relevance
+            chunks, deferred_embeddings(lambda: get_embedding_model(model)), relevance_score_fn=cosine_relevance
         )
     target.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(dir=target, suffix=".tmp", delete=False) as temporary:
@@ -86,11 +115,13 @@ def build_vectorstore(persist_dir: str | Path = DEFAULT_PERSIST_DIR, data_path=N
                 "version": 1,
                 "model": model,
                 "fingerprint": fingerprint,
+                "corpus_sha256": corpus_hash,
                 "documents": serialized,
             }, ensure_ascii=False))
         os.replace(temp_path, target / INDEX_FILE)
     finally:
         temp_path.unlink(missing_ok=True)
+    logger.info("faiss_index_written chunks=%d elapsed_ms=%.1f", len(chunks), (perf_counter()-started)*1000)
     return vectorstore
 
 
@@ -104,6 +135,8 @@ def load_index(persist_dir: str | Path = DEFAULT_PERSIST_DIR):
     if not artifact.is_file():
         raise FileNotFoundError("Build the index with python -m src.store.")
 
+    configure_cpu()
+    started = perf_counter()
     import faiss
     import numpy as np
     from langchain_community.docstore.in_memory import InMemoryDocstore
@@ -122,8 +155,9 @@ def load_index(persist_dir: str | Path = DEFAULT_PERSIST_DIR):
     }
     if index.ntotal != len(documents) or not documents:
         raise ValueError("Index is inconsistent. Rebuild with python -m src.store.")
+    logger.info("faiss_index_loaded chunks=%d elapsed_ms=%.1f", len(documents), (perf_counter()-started)*1000)
     return FAISS(
-        get_embedding_model(embedding_model()), index, InMemoryDocstore(documents),
+        deferred_embeddings(lambda: get_embedding_model(manifest["model"])), index, InMemoryDocstore(documents),
         {position: key for position, key in enumerate(documents)},
         relevance_score_fn=cosine_relevance,
     )
