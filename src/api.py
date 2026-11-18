@@ -1,0 +1,147 @@
+"""HTTP interface for the Southeast University assistant."""
+import logging
+import os
+import sqlite3
+from contextlib import closing
+from dataclasses import asdict
+from functools import lru_cache
+from pathlib import Path
+from typing import Literal
+from uuid import UUID, uuid4
+from zipfile import BadZipFile
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, field_validator
+
+from src.freshness import potentially_outdated
+from src.hybrid import HybridRetriever
+from src.reranker import Reranker
+from src.service import ChatService, source_url
+from src.store import INDEX_FILE, index_directory, load_index
+
+ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT / ".env")
+logger = logging.getLogger(__name__)
+app = FastAPI(title="Chatbot-SEU")
+origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
+if origins:
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
+                       allow_headers=["Content-Type"])
+
+
+class Turn(BaseModel):
+    question: str = Field(max_length=2000)
+    answer: str = Field(max_length=8000)
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    history: list[Turn] = Field(default_factory=list, max_length=5)
+    language: Literal["auto", "en", "bn"] = "auto"
+
+    @field_validator("question")
+    @classmethod
+    def clean_question(cls, value):
+        if not value.strip():
+            raise ValueError("A question is required.")
+        return value.strip()
+
+
+class Citation(BaseModel):
+    id: int
+    title: str | None = None
+    url: str | None = None
+    page: int | None = None
+    potentially_outdated: bool = True
+
+
+class ChatResponse(BaseModel):
+    request_id: UUID
+    answer: str
+    route: str
+    citations: list[Citation]
+    retrieved_count: int
+    elapsed_ms: float
+
+
+class FeedbackRequest(BaseModel):
+    request_id: UUID
+    helpful: bool
+
+
+@lru_cache(maxsize=1)
+def get_retriever():
+    store = load_index(index_directory())
+    return HybridRetriever(
+        store, candidates=int(os.getenv("RETRIEVAL_CANDIDATES", "16")),
+        rrf_k=int(os.getenv("RRF_K", "60")),
+        min_dense_score=float(os.getenv("MIN_DENSE_SCORE", "0.1")),
+    )
+
+
+class LazyRetriever:
+    def search(self, question, limit):
+        return get_retriever().search(question, limit)
+
+
+@lru_cache(maxsize=1)
+def get_service():
+    rerank_model = os.getenv("RERANK_MODEL")
+    return ChatService(LazyRetriever(), limit=int(os.getenv("RETRIEVAL_LIMIT", "5")),
+                       reranker=Reranker(rerank_model) if rerank_model else None)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "index_present": (index_directory() / INDEX_FILE).is_file()}
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(request: ChatRequest):
+    try:
+        result = get_service().chat(request.question,
+                                    [(turn.question, turn.answer) for turn in request.history],
+                                    request.language)
+        return ChatResponse(request_id=uuid4(), **asdict(result))
+    except Exception as exc:
+        logger.error("Chat request failed (%s)", type(exc).__name__)
+        raise HTTPException(503, "Chat is temporarily unavailable.") from None
+
+
+@app.get("/sources")
+def sources():
+    from src.store import read_manifest
+
+    try:
+        documents = read_manifest(index_directory())["documents"]
+    except (OSError, ValueError, BadZipFile, KeyError) as exc:
+        logger.error("Source manifest unavailable (%s)", type(exc).__name__)
+        raise HTTPException(503, "Sources are temporarily unavailable.") from None
+    summaries = {}
+    for document in documents:
+        metadata = document["metadata"]
+        key = (metadata.get("source_url"), metadata.get("title"))
+        summaries[key] = {
+            "url": source_url(key[0]), "title": key[1], "category": metadata.get("category"),
+            "updated_at": metadata.get("updated_at"), "potentially_outdated": potentially_outdated(metadata.get("updated_at")),
+        }
+    return list(summaries.values())
+
+
+@app.post("/feedback")
+def feedback(request: FeedbackRequest):
+    database = Path(os.getenv("FEEDBACK_DB") or ROOT / "vectorstore" / "feedback.sqlite3")
+    try:
+        database.parent.mkdir(parents=True, exist_ok=True)
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE IF NOT EXISTS feedback "
+                               "(request_id TEXT PRIMARY KEY, helpful INTEGER NOT NULL)")
+            connection.execute("INSERT INTO feedback VALUES (?, ?) "
+                               "ON CONFLICT(request_id) DO UPDATE SET helpful = excluded.helpful",
+                               (str(request.request_id), request.helpful))
+    except (OSError, sqlite3.Error) as exc:
+        logger.error("Feedback storage failed (%s)", type(exc).__name__)
+        raise HTTPException(503, "Feedback is temporarily unavailable.") from None
+    return {"saved": True}

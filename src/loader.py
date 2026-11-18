@@ -1,46 +1,60 @@
-try:
-    from langchain_community.document_loaders import JSONLoader
-except ImportError:
-    from langchain.document_loaders import JSONLoader  # type: ignore[import-not-found]
+"""Load archive records and optional local, text-based PDF material."""
+import json
+import re
+from pathlib import Path
+
+DEFAULT_DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "old_seu_website_cleaned.jsonl"
 
 
-def metadata_func(record: dict, metadata: dict) -> dict:
-    """Attach useful fields as metadata instead of dumping them into the text."""
-    metadata["id"] = record.get("id")
-    metadata["source_url"] = record.get("source_url")
-    metadata["title"] = record.get("title")
-    return metadata
+def read_records(path):
+    with Path(path).open(encoding="utf-8-sig") as source:
+        if Path(path).suffix.lower() == ".json":
+            records = json.load(source)
+            if not isinstance(records, list):
+                raise ValueError("JSON sources must contain an array of records.")
+            yield from records
+        else:
+            for line_number, line in enumerate(source, start=1):
+                if line.strip():
+                    try:
+                        yield json.loads(line)
+                    except ValueError as exc:
+                        raise ValueError(f"Invalid corpus JSON at line {line_number}") from exc
 
 
-def load_university_data(json_path: str = "data/old_seu_website_cleaned.jsonl"):
-    """
-    Loads university JSONL data into LangChain Document objects.
-    Prepends the title to the content so the title's keywords contribute
-    to retrieval matching (e.g. a query about "vision" should strongly
-    match a record titled "Vision").
-    """
-    loader = JSONLoader(
-        file_path=json_path,
-        jq_schema=".",
-        content_key="clean_text",
-        metadata_func=metadata_func,
-        json_lines=True,
-        text_content=True,
-    )
-    docs = loader.load()
+def load_university_data(json_path: str | Path = DEFAULT_DATA_PATH):
+    from langchain_core.documents import Document
 
-    # Prepend title to content for better semantic matching
-    for doc in docs:
-        title = doc.metadata.get("title", "")
-        if title:
-            doc.page_content = f"{title}\n\n{doc.page_content}"
+    path = Path(json_path)
+    documents = []
+    for number, record in enumerate(read_records(path), start=1):
+        if not isinstance(record, dict):
+            raise ValueError(f"Corpus record {number} must be an object.")
+        metadata = {key: record.get(key) for key in
+                    ("id", "source_url", "title", "category", "updated_at")}
+        if any(value is not None and not isinstance(value, (str, int)) for value in metadata.values()):
+            raise ValueError(f"Invalid metadata for corpus record {number}.")
+        title = metadata["title"]
+        pdf_path = record.get("pdf_path")
+        if pdf_path:
+            from pypdf import PdfReader
 
-    return docs
-
-
-if __name__ == "__main__":
-    docs = load_university_data()
-    print(f"Loaded {len(docs)} documents")
-    if docs:
-        print("Sample content:\n", docs[0].page_content[:200])
-        print("Sample metadata:\n", docs[0].metadata)
+            local = (path.parent / pdf_path).resolve()
+            if not local.is_relative_to(path.parent.resolve()) or local.suffix.lower() != ".pdf":
+                raise ValueError(f"Invalid PDF path for corpus record {number}.")
+            bodies = [(page.extract_text() or "", page_number)
+                      for page_number, page in enumerate(PdfReader(local).pages, start=1)]
+        else:
+            content = record.get("clean_text")
+            if not isinstance(content, str):
+                raise ValueError(f"Corpus record {number} requires clean_text or pdf_path.")
+            bodies = [(content, None)]
+        for text, page in bodies:
+            clean = re.sub(r"[^\S\r\n]+", " ", text).strip()
+            if not clean:
+                continue
+            fields = {**metadata, "page": page} if page else metadata
+            documents.append(Document(
+                page_content=f"{title}\n\n{clean}" if title else clean, metadata=fields,
+            ))
+    return documents

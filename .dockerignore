@@ -1,0 +1,10 @@
+.env
+.env.*
+.git
+.worktrees
+myenvironment
+.venv
+__pycache__
+vectorstore
+.verify-deps
+.verify-linux

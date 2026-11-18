@@ -1,0 +1,10 @@
+[
+  {"question":"What is Southeast University's stated vision?", "sources":["https://seu.edu.bd/vision"], "route":"university"},
+  {"question":"What does the SEU mission statement say?", "sources":["https://seu.edu.bd/mission"], "route":"university"},
+  {"question":"সাউথইস্ট ইউনিভার্সিটির সিএসই পাঠ্যক্রমে কী আছে?", "sources":["https://cse.seu.edu.bd/cse-curriculum"], "route":"university"},
+  {"question":"SEU te undergraduate admission requirement ki?", "sources":["https://seu.edu.bd/admission-requirements-undergraduate"], "route":"university"},
+  {"question":"And what about the master's requirements?", "history":[["What are the undergraduate admission requirements?","We were discussing SEU admissions."]], "sources":["https://seu.edu.bd/admission-requirement-masters"], "route":"university"},
+  {"question":"Can you explain the offside rule in soccer?", "sources":[], "route":"out_of_scope"},
+  {"question":"What is the guaranteed exact date of the SEU 2099 graduation ceremony?", "sources":[], "route":"unverified"},
+  {"question":"হ্যালো!", "sources":[], "route":"conversation"}
+]
