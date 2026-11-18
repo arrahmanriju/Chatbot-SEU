@@ -16,7 +16,7 @@ from src.student import (classify_intents, language_of, localized, navigation_qu
                          private_request, replacement_certificate_request,
                          requires_clarification, safe_question)
 
-from src.programs import tuition_programs
+from src.programs import classify_fee, fee_record_programs
 from src.tuition import render_tuition
 
 logger = logging.getLogger(__name__)
@@ -155,13 +155,14 @@ class ChatService:
         query = self.rewrite(safe_question(question), safe_history)
         if self.student_support and not intents:
             intents = classify_intents(query)
-        programs = tuition_programs(query) if self.student_support else ()
+        fee_type, requested_programs = classify_fee(query) if self.student_support else (None, ())
+        programs = fee_record_programs(fee_type, requested_programs)
         campus_question = self.student_support and has_university_context(query)
         if self.student_support and query != question and mentions_other_institution(query):
             return Answer(outside, "out_of_scope", elapsed_ms=(perf_counter() - started) * 1000)
         if programs:
-            matches = self.retriever.search_program_fees(programs)
-            tuition = render_tuition(matches, programs, query, language)
+            matches = self.retriever.search_program_fees(programs, fee_type)
+            tuition = render_tuition(matches, programs, query, language, fee_type, requested_programs)
             if tuition:
                 answer, citations, current_unverified = tuition
                 return Answer(answer, "unverified" if current_unverified else "university", citations,
@@ -172,6 +173,9 @@ class ChatService:
                 "উল্লিখিত প্রোগ্রাম ও ভর্তি সেশনের অফিসিয়াল ফি যাচাই করা যায়নি। প্রযোজ্য ফি এসইউর ভর্তি পোর্টালে দেখুন।",
                 "Requested program ar session er official fee verify kora jayni. SEU admission portal e applicable fee dekhun.",
             )
+            if fee_type == "semester_tuition" and matches:
+                message += localized(language, " How many credits will you take that semester?",
+                                     " ?? ?????????? ?? ??????? ??????", " Oi semester e koy credit niben?")
             source = self.student_sources["seu-admission"]
             return Answer(message, "unverified", [{
                 "id": 1, "source_id": source["id"], "title": source["title"], "url": source["source_url"],

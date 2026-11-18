@@ -39,6 +39,10 @@ def load_university_data(json_path: str | Path = DEFAULT_DATA_PATH):
             raise ValueError(f"Invalid metadata for corpus record {number}.")
         if isinstance(record.get("fee_schedule"), dict):
             metadata["fee_schedule"] = record["fee_schedule"]
+        if isinstance(record.get("program"), str):
+            metadata["program"] = record["program"]
+        if isinstance(record.get("fee_type"), list) and all(isinstance(value, str) for value in record["fee_type"]):
+            metadata["fee_type"] = record["fee_type"]
         title = metadata["title"]
         pdf_path = record.get("pdf_path")
         if pdf_path:

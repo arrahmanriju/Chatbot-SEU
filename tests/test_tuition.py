@@ -6,7 +6,7 @@ from unittest.mock import Mock
 from src.filter import has_university_context
 from src.hybrid import HybridRetriever
 from src.loader import VERIFIED_STUDENT_PATH, read_records
-from src.programs import identify_programs, tuition_programs
+from src.programs import classify_fee, identify_programs, tuition_programs
 from src.service import ChatService
 from src.student import classify_intents
 
@@ -15,10 +15,10 @@ CASES = (
     ("Can you share the tuition fee of BBA?", ("BBA",), ("4,950", "127", "628,650", "658,650")),
     ("What is the tuition fee of CSE?", ("CSE",), ("4,750", "150", "712,500", "777,500")),
     ("BBA tuition fee koto?", ("BBA",), ("4,950", "127", "628,650", "658,650")),
-    ("CSE er total cost koto?", ("CSE",), ("4,750", "150", "712,500", "777,500")),
+    ("CSE er total cost koto?", ("CSE",), ("777,500",)),
     ("BBA এর টিউশন ফি কত?", ("BBA",), ("4,950", "127", "628,650", "658,650")),
     ("How much does EEE cost?", ("EEE",), ("3,450", "153", "527,850", "598,500")),
-    ("What is the MBA per credit fee?", ("MBA_REGULAR", "MBA_ONE_YEAR"), ("4,200", "4,250", "259,500", "160,000")),
+    ("What is the MBA per credit fee?", ("MBA_REGULAR", "MBA_ONE_YEAR"), ("4,200", "4,250")),
     ("What is the current BBA fee?", ("BBA",), ("could not verify current", "4,950", "658,650")),
     ("Compare CSE and BBA tuition fees.", ("CSE", "BBA"), ("4,750", "4,950", "777,500", "658,650")),
 )
@@ -96,7 +96,7 @@ class TuitionTests(unittest.TestCase):
 
     def test_separate_charges_and_program_variants(self):
         cases = (
-            ("What is the BBA admission fee?", "18,100", "Fall 2025"),
+            ("What is the BBA admission fee?", "15,000", "Fall 2025"),
             ("B.Pharm tuition fee?", "5,350", "Spring 2026"),
             ("MBA one-year cost?", "4,250", "Fall 2025"),
             ("EMBA fee?", "4,000", "Fall 2025"),
@@ -108,4 +108,54 @@ class TuitionTests(unittest.TestCase):
                 self.assertEqual(reply.route, "university")
                 self.assertIn(figure, reply.answer)
                 self.assertEqual(reply.citations[0]["admission_session"], session)
+        self.generate.assert_not_called()
+
+
+
+    def test_precise_fee_requests(self):
+        cases = (
+            ("What is the admission fee of CSE?", "admission_fee", ("CSE",),
+             ("15,000",), ("18,100", "11,400", "712,500", "777,500")),
+            ("How much do I need to pay when joining CSE?", "initial_payment", ("CSE",),
+             ("11,400", "18,100", "20%"), ("29,500", "712,500", "777,500")),
+            ("What is the tuition per credit for CSE?", "tuition_per_credit", ("CSE",),
+             ("4,750",), ("15,000", "712,500", "777,500")),
+            ("What is the total cost of CSE?", "total_cost", ("CSE",),
+             ("777,500",), ("15,000", "4,750", "712,500")),
+            ("CSE admission fee koto?", "admission_fee", ("CSE",),
+             ("15,000",), ("11,400", "18,100", "777,500")),
+            ("CSE te vorti hote koto taka lagbe?", "initial_payment", ("CSE",),
+             ("11,400", "18,100", "20%"), ("29,500", "712,500", "777,500")),
+            ("What is the admission fee for BBA?", "admission_fee", ("BBA",),
+             ("15,000",), ("18,100", "628,650", "658,650")),
+            ("What is the application fee for CSE?", "application_fee", ("CSE",),
+             ("1,000",), ("15,000", "18,100")),
+            ("What is the total tuition for CSE?", "total_tuition", ("CSE",),
+             ("712,500",), ("15,000", "777,500")),
+            ("What is CSE semester tuition for 12 credits?", "semester_tuition", ("CSE",),
+             ("57,000",), ("712,500", "777,500")),
+            ("What is the initial tuition deposit for CSE?", "tuition_deposit", ("CSE",),
+             ("11,400",), ("15,000", "18,100", "777,500")),
+        )
+        for question, kind, programs, included, excluded in cases:
+            with self.subTest(question=question):
+                self.assertEqual(classify_fee(question), (kind, programs))
+                reply = self.chat.chat(question)
+                self.assertEqual(reply.route, "university")
+                self.assertIn("Fall 2025", reply.answer)
+                self.assertTrue(all(text in reply.answer for text in included), reply.answer)
+                self.assertTrue(all(text not in reply.answer for text in excluded), reply.answer)
+                self.assertTrue(reply.citations)
+                for citation in reply.citations:
+                    self.assertEqual(citation["url"], SOURCE)
+                    self.assertIn(kind, self.records[citation["source_id"]]["fee_type"])
+        self.generate.assert_not_called()
+
+    def test_missing_precise_fee_does_not_use_program_total(self):
+        for question in ("What is the CSE admission fee for Fall 2026?", "What is CSE semester tuition?"):
+            with self.subTest(question=question):
+                reply = self.chat.chat(question)
+                self.assertEqual(reply.route, "unverified")
+                self.assertNotIn("777,500", reply.answer)
+                self.assertNotIn("15,000", reply.answer)
         self.generate.assert_not_called()

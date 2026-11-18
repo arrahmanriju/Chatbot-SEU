@@ -84,7 +84,72 @@ def _select_fees(matches, programs, question):
     return selected
 
 
-def render_tuition(matches, programs, question, language):
+def _typed_fee_lines(kind, selected, requested_programs, question, language):
+    """Return only fields that answer the requested fee concept."""
+    phrases = {
+        "admission_fee": ("One-time admission fee", "এককালীন ভর্তি ফি", "One-time admission fee"),
+        "application_fee": ("Admission application form fee", "ভর্তি আবেদন ফরমের ফি", "Admission form fee"),
+        "tuition_per_credit": ("Tuition per credit", "প্রতি ক্রেডিটের টিউশন", "Per-credit tuition"),
+        "semester_tuition": ("Semester tuition", "সেমিস্টারের টিউশন", "Semester tuition"),
+        "total_tuition": ("Total program tuition", "মোট প্রোগ্রাম টিউশন", "Mot program tuition"),
+        "total_cost": ("Approximate total program cost", "আনুমানিক মোট প্রোগ্রাম খরচ", "Anumanik mot program cost"),
+        "tuition_deposit": ("Initial tuition deposit", "প্রাথমিক টিউশন জমা", "Initial tuition deposit"),
+        "initial_payment": ("Payment at admission", "ভর্তির সময় প্রদেয়", "Vortir shomoy payment"),
+    }
+    label = localized(language, *phrases[kind])
+    charges = next((amounts for _, fees, amounts in selected if fees["program"] == "ADMISSION"), None)
+    if kind in {"admission_fee", "application_fee"}:
+        value = charges[0 if kind == "admission_fee" else 2]
+        subject = ", ".join(requested_programs)
+        scope = localized(
+            language, "The prospectus lists this as a general charge and gives no separate program-specific amount.",
+            "প্রসপেক্টাসে এটি সাধারণ ফি হিসেবে আছে। আলাদা প্রোগ্রামভিত্তিক পরিমাণ দেওয়া হয়নি।",
+            "Prospectus e eta general fee hisebe deya. Alada program-specific amount deya nei.",
+        )
+        return [f"**{label}{f' ({subject})' if subject else ''}: BDT {value:,}**", scope]
+
+    blocks = []
+    for _, fees, amounts in selected:
+        if fees["program"] == "ADMISSION":
+            continue
+        name = fees["program_name"]
+        if kind in {"tuition_deposit", "initial_payment"}:
+            rule = fees.get("tuition_deposit")
+            if not isinstance(rule, dict):
+                return []
+            percent, credits = rule.get("percent"), rule.get("credit_basis")
+            if type(percent) is not int or not 0 < percent <= 100 or type(credits) is not int or credits <= 0:
+                return []
+            deposit, remainder = divmod(percent * credits * amounts[0], 100)
+            if remainder:
+                return []
+            deposit_label = localized(language, *phrases["tuition_deposit"])
+            lines = [f"**{name} — {label}**",
+                     f"- {deposit_label}: BDT {deposit:,} ({percent}% × {credits} × BDT {amounts[0]:,})"]
+            if kind == "initial_payment":
+                charge_label = localized(language, "Separately listed admission charges",
+                                          "আলাদাভাবে তালিকাভুক্ত ভর্তি চার্জ", "Alada listed admission charges")
+                lines += [f"- {charge_label}: BDT {charges[-1]:,}",
+                          localized(language,
+                                    "I could not verify the full amount due at joining. Confirm it with the Admissions Office.",
+                                    "ভর্তির সময় ঠিক কত দিতে হবে, ভর্তি অফিসে নিশ্চিত করুন।",
+                                    "Joining er shomoy exact total Admission Office e confirm korun.")]
+            blocks.append("\n".join(lines))
+            continue
+        if kind == "semester_tuition":
+            normalized = question.translate(str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789"))
+            credits = re.search(r"\b([1-9][0-9]?)\s*(?:credits?\b|ক্রেডিট)", normalized, re.I)
+            if not credits:
+                return []
+            value = amounts[0] * int(credits[1])
+            blocks.append(f"**{name} — {label}: BDT {value:,}** ({credits[1]} × BDT {amounts[0]:,})")
+            continue
+        value = amounts[{"tuition_per_credit": 0, "total_tuition": 2, "total_cost": 3}[kind]]
+        blocks.append(f"**{name} — {label}: BDT {value:,}**")
+    return blocks
+
+
+def render_tuition(matches, programs, question, language, kind="program_overview", requested_programs=()):
     selected = _select_fees(matches, programs, question)
     if not selected:
         return None
@@ -96,6 +161,17 @@ def render_tuition(matches, programs, question, language):
             if current else localized(language, "These figures apply to the listed admission session. Newer fees may differ.",
                                       "এই ফি উল্লেখিত ভর্তি সেশনের জন্য। পরবর্তী সেশনের ফি ভিন্ন হতে পারে।",
                                       "Ei fee listed admission session er jonno. Notun intake er fee alada hote pare."))
+    if kind != "program_overview":
+        blocks = _typed_fee_lines(kind, selected, requested_programs, question, language)
+        if not blocks:
+            return None
+        session = selected[0][0]["admission_session"]
+        citations = [
+            {"id": position, "source_id": metadata["id"], "title": metadata["title"],
+             "url": metadata["source_url"], "admission_session": session, "potentially_outdated": True}
+            for position, (metadata, _, _) in enumerate(selected, start=1)
+        ]
+        return "\n\n".join((session, note, *blocks) if current else (session, *blocks, note)), citations, current
     blocks, citations = [], []
     for position, (metadata, fees, amounts) in enumerate(selected, start=1):
         session = metadata["admission_session"]

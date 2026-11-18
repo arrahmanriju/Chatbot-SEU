@@ -77,8 +77,13 @@ class HybridRetriever:
                 documents.setdefault(schedule["program"], []).append(doc)
         return documents
 
-    def search_program_fees(self, programs):
-        return [Match(doc, None) for program in programs for doc in self.fee_documents.get(program, ())]
+    def search_program_fees(self, programs, fee_type=None):
+        return [
+            Match(doc, None)
+            for program in programs
+            for doc in self.fee_documents.get(program, ())
+            if fee_type is None or fee_type in doc.metadata.get("fee_type", ())
+        ]
 
     def search(self, question: str, limit: int = 5):
         dense = self.store.similarity_search_with_relevance_scores(question, k=self.candidates)

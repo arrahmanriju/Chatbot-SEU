@@ -88,8 +88,8 @@ class LazyRetriever:
     def search(self, question, limit):
         return get_retriever().search(question, limit)
 
-    def search_program_fees(self, programs):
-        return get_retriever().search_program_fees(programs)
+    def search_program_fees(self, programs, fee_type=None):
+        return get_retriever().search_program_fees(programs, fee_type)
 
 
 @lru_cache(maxsize=1)
@@ -131,7 +131,8 @@ def sources():
         key = (metadata.get("source_url"), metadata.get("title"))
         summaries[key] = {
             "url": source_url(key[0]), "title": key[1], "category": metadata.get("category"),
-            "source_id": metadata.get("id"), "admission_session": metadata.get("admission_session"), "retrieved_at": metadata.get("retrieved_at"),
+            "source_id": metadata.get("id"), "admission_session": metadata.get("admission_session"),
+            "program": metadata.get("program"), "fee_type": metadata.get("fee_type"), "retrieved_at": metadata.get("retrieved_at"),
             "updated_at": metadata.get("updated_at"), "potentially_outdated": potentially_outdated(metadata.get("updated_at")),
         }
     return list(summaries.values())

@@ -45,8 +45,8 @@ def run(baseline, index, live_output=None):
                 def __init__(self):
                     self.evidence = []
 
-                def search_program_fees(self, programs):
-                    return retriever.search_program_fees(programs)
+                def search_program_fees(self, programs, fee_type=None):
+                    return retriever.search_program_fees(programs, fee_type)
 
                 def search(self, question, limit):
                     matches = retriever.search(question, limit)
