@@ -33,7 +33,7 @@ python -m src.store
 python -m uvicorn src.api:app --host 127.0.0.1 --port 8000
 ```
 
-In a second shell with the same environment, run `python -m streamlit run app.py`. The app opens at http://localhost:8501. Tests run with `python -m unittest discover -s tests -v`.
+In a second shell with the same environment, run `python -m streamlit run app.py`. The app opens at http://localhost:8501. On Windows hosts whose Application Control policy blocks the FAISS extension, run the backend and index builder in Ubuntu under WSL or in the Linux container. Tests run with `python -m unittest discover -s tests -v`.
 
 | Environment variable | Purpose |
 | --- | --- |
@@ -78,11 +78,19 @@ Run `python -m evaluation.answers export review.json` to capture generated answe
 | Multilingual hybrid with reranking | 5 | 0.40 | 0.25 | 974.12 ms |
 | Multilingual hybrid with reranking and rewriting | 5 | 0.40 | 0.25 | 812.67 ms |
 
-The eight-query original dense answer run used GPT-OSS 20B because Groq retired the original generation model. It had 25.0% answer relevance and 416 ms mean latency. The sole factual claim was unsupported, so the claim-level rate for that run has a denominator of one.
+### Live answer review
 
-The eight-query hybrid MiniLM run measured 62.5% answer relevance, 7 of 9 factual claims supported by excerpts (77.8%), 2 of 9 unsupported (22.2%), and 732 ms mean latency. The review found a mission response that combined organizational scopes. The generator now explicitly separates university-wide statements from departmental ones and checks scope again on an unverified result.
+Each run used the same eight benchmark questions and GPT-OSS 20B. The original baseline uses its original retrieval and prompt configuration with the available Groq model. One reviewer marked relevance and counted factual claims supported by the retrieved excerpts.
 
-A separate eight-query archive BM25 and GPT-OSS 20B run had 37.5% answer relevance, 12 of 17 factual claims supported by excerpts (70.6%), 5 of 17 unsupported (29.4%), and 788 ms mean end-to-end latency. One reviewer annotated the results. The sample included an admission answer that lost eligibility qualifiers and an unrelated request that received an unverified response. The service now distinguishes scope when search is empty and visibly labels answers relying on stale sources.
+| Answer variant | Relevant answers | Supported claims | Unsupported claims | Mean latency |
+| --- | ---: | ---: | ---: | ---: |
+| Original dense MiniLM | 2/8 | 0/1 | 100% | 416 ms |
+| Archive-document BM25 | 3/8 | 12/17 | 29.4% | 788 ms |
+| Hybrid MiniLM | 5/8 | 7/9 | 22.2% | 732 ms |
+| Multilingual hybrid with reranking | 3/8 | 0/1 | 100% | 1,477 ms |
+| Multilingual hybrid with reranking and rewriting | 5/8 | 2/3 | 33.3% | 1,242 ms |
+
+The denominators show how often a variant made a factual claim. A variant that abstains frequently can have a fragile unsupported-claim rate. The runs exposed missing admissions qualifiers and citations to statements about the wrong organizational unit. The prompt now emphasizes evidence qualifiers and scope, and the service rechecks unrelated queries when evidence is inconclusive. The answer runs preceded that final prompt and routing adjustment.
 
 The BM25-only run ranks full documents on Windows. The FAISS variants rank chunks and ran in CPU-only Ubuntu under WSL because Windows Application Control blocked native FAISS imports. With five labeled queries, these results show observed behavior on the supplied archive and give limited evidence of performance on production traffic. The multilingual comparison used `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` with `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`. The reranking stage reduced retrieval quality in this sample, so it remains optional. The first reranking run includes loading the model into memory. The rewrite variant reused that model, so its lower mean latency does not imply that rewriting made reranking faster.
 
